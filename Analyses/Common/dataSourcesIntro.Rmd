@@ -1,0 +1,94 @@
+### Where the data come from {.tabset .tabset-pills}
+
+This report is updated about once each week, pulling, cleaning and merging data from three sources.  
+
+* Mapping Police Violence (MPV, https://mappingpoliceviolence.us/) -- 2013-current  
+* A locally maintained dataset for WA state only (WA local, https://github.com/nextstepswa/WA-FEWP) -- 2022-current, with additional backfilling as needed
+* Fatal Encounters (https://fatalencounters.org/) -- 2000-2021
+
+The primary data source is MPV, but due to coverage limitations in the MPV project we augment their data with historical data from Fatal Encounters and a locally updated dataset for WA with coverage criteria equivalent to Fatal Encounters.  Cases in the WA local dataset are linked to their MPV records when applicable, and all records in the final dataset include identifiers for linking to their records in the legacy datasets from Fatal Encounters and the Washington Post (see the following sections for more details).
+
+The breakdown of the data sources is shown below. All cases covered by MPV are listed in that column, the additional cases contributed from FE (2015-21) and WA local (2022+) are shown in the other two columns.
+
+```{r sourceBreakdown, message=F, warning=F}
+tab <- wa_2015 %>% 
+  mutate(Source = factor(
+    case_when(
+      !is.na(mpvID) ~ "MPV",
+      !is.na(feID) ~ "FE",
+      !is.na(waID) ~ "WA",
+      TRUE ~ "other"),
+    levels = c("MPV", "FE", "WA"))
+  ) %>%
+  count(Source, Year = as.character(year)) %>% 
+  pivot_wider(names_from=Source, values_from=n) %>% 
+  mutate(across(where(is.numeric), ~replace_na(.,0))) %>%
+  add_row(Year = "Total", summarise(., across(where(is.numeric), sum)))
+  
+tab %>%
+  kableExtra::kbl(caption = "Breakdown of fatalities by data source and year") %>%
+  kable_styling(bootstrap_options = c("striped", "hover")) %>%
+  add_header_above(header = c(" " = 1, "Data Source *" = 3)) %>%
+  row_spec(which(tab$Year == "Total"), bold=T) %>%
+  add_footnote(label = "Most records in MPV and WA can be found in multiple sources, see below for more details on the overlap",
+               notation = "symbol")
+
+```
+
+#### Mapping Police Violence
+
+Mapping Police Violence (MPV) aims to establish a comprehensive national open-source dataset of homicides by police, on and off duty.  It includes fatal shootings and fatalities caused by tasers, physical beatings, restraint holds, chemical spray, police dog attacks, less-lethal force and vehicular homicides.  Vehicular homicides are included in MPV only when the fatalities are directly caused by a police action: intentionally running someone over, intentional collisions and vehicle disabling during a pursuit that leads to a fatal accident. These criteria result in the exclusion of most vehicle pursuit-related fatalities.
+
+MPV is the only national project that is still actively updating.  It has incorporated historical data from two legacy projects: 
+
+* the Fatal Encounters project which stopped updating in 2021, and 
+
+* the Washington Post Police Fatal Force project which was active from 2015-2025 (https://www.washingtonpost.com/graphics/investigations/police-shootings-database/).  
+
+MPV merged the incidents from these two datasets to prevent duplication, removed incidents that did not meet their inclusion criteria, added eligible incidents that were missed by both projects, kept all of the information from both datasets on the included incidents, and is now augmenting all incidents (back through 2013) with additional information. 
+
+#### Fatal Encounters
+
+Fatal Encounters (FE) is a legacy project that sought to establish a comprehensive national open-source dataset of all deaths during encounters with police.  This project was active through December 31, 2021, includes records going back to 2000, and produced the largest compilation of persons killed during encounters with police that is publicly available: 31,641 fatalities at the time the project ended.  It covers deaths by all causes during a police encounter, including suicides, accidents, killings by off-duty police and vehicular pursuit related fatalities.  The vehicular pursuit coverage in FE is broader than MPV, as it includes all fatalities from accidents during a pursuit, so it captures bystanders killed by the fleeing subject.  
+
+* FE historical data, for cases consistent with the MPV inclusion criteria, are incorporated by the MPV project  into their database.
+
+* We recover FE cases that were excluded by MPV and include them in the WA local data.  They are used in this report, subject to the exclusions noted in a later section.
+
+#### WA Local data
+
+For WA State only we maintain a dataset that uses the same coverage criteria as Fatal Encounters.  In this dataset we 
+
+* update fatalities if they are known to us before they appear in MPV, 
+
+* supplement the MPV data with new fatalities from police vehicular pursuits and other encounters by replicating the google alerts and searches used by Fatal Encounters, and
+
+* occasionally add additional historical incidents found through searches of local records (e.g., Medical Examiner reports, Inquest reports, etc.).
+
+#### Washington Post
+
+The Washington Post Fatal Force (WaPo) dataset is a legacy project that sought to create a national database of fatal *shootings* by on-duty police.  It was actively updating from January 1, 2015 through December 31, 2024.  There were 10,429 fatalities recorded at the time the project ended.  
+
+* WaPo historical data has been incorporated by the MPV project into their database.
+
+
+____
+
+For all of our data sources, it is worth noting that:
+
+* None include deaths in custody after booking. 
+
+* All sources may be missing incidents.
+
+A comparison of the cases found in each dataset is presented in the 
+[next section](#dataset-differences) of this report.
+
+There has typically been a 1-2 week lag in MPV updates, but it can sometimes be longer.  The date shown in the "most recent data update" tab above is an indication of the current lag.  As of this report, the last data updates were:
+
+* `r format(last_date_mpv, format="%B %d %Y")` for Mapping Police Violence
+* `r format(last_date_wa, format="%B %d %Y")` for the WA local data
+
+
+This report is restricted to the cases that can be classified as homicides by police and vehicular homicides during police pursuits, it excludes cases where the cause of death during the police encounter is ruled a suicide and other medical emergencies that result in death while in custody (see the [next section](#dataset-differences) for details).
+
+___

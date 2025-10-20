@@ -1,0 +1,117 @@
+### Dataset features
+
+All of the data sources we use are open-source, "unofficial" datasets.  Their data are not drawn from mandatory government reporting on deaths caused by law enforcement officers because there is no official national data program designed for this purpose that is currently functioning.  
+
+The datasets are based instead on cases known/discovered by the project teams, primarily through online searches.  You can find more details about the methodology used by each project on their websites:  [Fatal Encounters](https://fatalencounters.org/methodology/), [Washington Post](https://www.washingtonpost.com/investigations/2022/12/05/washington-post-fatal-police-shootings-methodology/), and [Mapping Police Violence](https://mappingpoliceviolence.us/aboutthedata).  
+
+#### Open-source vs. Official
+
+In theory, deaths caused by police should also be captured by several official data collection programs:  
+
+* the [National Vital Statistics System](https://www.cdc.gov/violenceprevention/datasources/nvdrs/index.html), which collects death certificates
+
+* the [Arrest Related Death](https://bjs.ojp.gov/data-collection/arrest-related-deaths-ard) program, run by the Bureau of Justice Statistics (BJS), suspended in 2014, current status unknown.
+
+* the [Supplementary/Expanded Homicide Reports](https://ucr.fbi.gov/crime-in-the-u.s/2019/crime-in-the-u.s.-2019/tables/expanded-homicide-data-table-14.xls) program, run by the the Federal Bureau of Investigation (FBI), based on the Uniform Crime Reporting program.
+
+* the [National Violent Deaths Reporting System](https://www.cdc.gov/violenceprevention/datasources/nvdrs/index.html), a newer program run by the Centers for Disease Control and Prevention (CDC), all states reporting as of 2018, though reporting is not yet complete for the recently added states.
+
+
+Studies have repeatedly shown, however, that these official programs consistently fail to identify about half of the people killed by police.  The most recent study to have replicated this finding was conducted by the [Institute for Health Metrics and Evaluation](https://www.healthdata.org/about) in 2021, and published in the [Lancet](https://www.thelancet.com/).  You can access the study [here](https://www.thelancet.com/journals/lancet/article/PIIS0140-6736(21)01609-3/fulltext), and less technical summaries [can be found in the news media](https://www.cnn.com/2021/09/30/us/study-police-deaths-undercount/index.html).  Other studies show similar rates of undercounting in the Arrest Related Death and Supplementary Homicide Reporting systems, one example is [here](https://www.ojp.gov/library/publications/assessment-coverage-arrest-related-deaths-program).  
+
+The one exception to this is the National Violent Deaths Reporting system, where a [study from 2015](https://ajph.aphapublications.org/doi/full/10.2105/AJPH.2018.304904) found that it captured almost all of the people shot and killed by police in the 27 states that were participating in the program at the time.  But there has been no update since the state coverage reached all 50 states in 2018, and there has been no assessment of its coverage of deaths due to causes other than gunshot.  Perhaps most importantly, the study simply showed that this dataset had comparable coverage to the open-source datasets, not that it was superior.
+
+Research has also shown that the methodology used by the open-source data sets is effective:
+
+  "Findings indicate that the open-source methodology alone identifies the majority of law enforcement homicides, but agency surveys aid in identifying deaths by other causes (e.g., accidents, suicides, and natural causes)."  [BJS 2019](https://www.ojp.gov/library/publications/arrest-related-deaths-program-pilot-study-redesigned-survey-methodology)
+
+_____
+
+> At this point, it is widely acknowleged that the open-source datasets have the most complete coverage of these cases.  That is why we use them here.
+
+_____
+
+The other key benefit to the Fatal Encounters / Mapping Police Violence data in particular is that every case includes a link to documentation that verifies the case and serves as a starting place for additional research.  This allows us to identify the law enforcement agency(ies) involved, provides more context and sometimes reveals conflicting narratives as to the events.  All of this helps to remind us that each case is a person, not just a statistic.
+
+That said, it is important to keep in mind that these open-source datasets, too, are not perfect.   They will miss cases that have not generated a digital signature that can be found using their search methodologies.  So it would be accurate to say that our open-source data provide a lower bound estimate of the number of people killed by police; the true value is likely higher, but it can not be lower.
+
+#### Dataset differences
+
+Since MPV has become the one national project still actively updating, they have incorporated the historical data from FE and WaPo into their database:  they merged the incidents that met their inclusion criteria and preserved almost all of the data fields from each project.  Each record in the MPV data has three ID variables indicating where the case can be found:  all cases have an MPV ID, and some cases also have FE and/or WaPo IDs.  The presence or absence of the FE and WaPo IDs reflects differences in inclusion criteria (e.g., the WaPo data is restricted to fatal shootings), MPV's identification of additional historical cases over time, and the cessation of data collection for FE and WaPo.
+
+MPV excludes most of the deaths that occur during police vehicular pursuits.  As can be seen in this report, police pursuits are the second leading cause of death in police-civilian encounters; the exclusion of pursuit-related fatalities results in an incomplete assessment of the death toll from police activities.  You can find more details on pursuit fatalities here in WA State in [this report](https://rpubs.com/moxbox/wa_pursuits).
+
+We recover the pursuit related fatalities by pulling these from the FE dataset for 2015-2021, and tracking the post 2021 incidents in the WA local data (for WA State only).  Like MPV, the WA local data includes ID fields that allow its cases to be matched to the other datasets:  MPV, FE and WaPo.
+
+The coverage of each dataset can be assessed by these ID tags:  each record in our final dataset includes the set of ID tags that show whether it was included in the source datasets, and if so, the unique ID in that dataset.  That coverage, by year, is shown below.  The "Total Cases" column in the table is the total cases in that year, so the number of cases in each of the dataset ID columns gives a sense of what fraction of that year's cases were covered by that dataset.
+
+`r params$from` is `r nrow(wa_2015)`.  These are classified as follows:
+
+```{r tabAllCases}
+
+tab <- homicides %>%
+  group_by(Year = as.character(year)) %>%
+  summarize(FE.ID = sum(!is.na(feID)),
+            MPV.ID = sum(!is.na(mpvID)),
+            WaPo.ID = sum(!is.na(wapoID)),
+            WaLocal.ID = sum(!is.na(waID)),
+            Total.Cases = n()
+  ) %>%
+  mutate(Percent = round(100*Total.Cases/sum(Total.Cases), 1)) %>%
+
+  add_row(Year = "Total", summarise(., across(where(is.numeric), sum)))
+
+tab %>%
+  kable(caption = "Dataset Coverage by Year") %>%
+  kable_styling(bootstrap_options = c("striped","hover")) %>%
+  add_header_above(header = c(" " = 1, "Data Source" = 4, "Yearly totals"=2)) %>%
+  row_spec(dim(tab)[1], bold = T)  %>%
+  column_spec(which(names(tab)=="Total.Cases"), bold=T) %>%
+  column_spec(which(names(tab)=="Percent"), italic=T) %>%
+
+  add_footnote(label = "Percents may not sum to 100 due to rounding",
+               notation = "symbol")
+```
+  
+### Exclusions
+
+Cases officially reported as suicides and "Medical Emergencies" are excluded from the analyses in this report.
+
+The Fatal Encounters data (and our extension of their data for WA State) includes some cases classified as "suicides" that occur during an encounter with police.  These are not cases of "suicide by cop", where the victim appears to have provoked the police in order to be killed.  They are cases where the victim shoots or otherwise kills themself.  **We have excluded these from the analyses in this report, because the report focuses on persons killed by police.**  
+
+However, we acknowledge that these cases warrant further assessment.  In many of these cases, officers did shoot at the suspect, but missed or failed to kill them.  In addition the classification as "suicide" is not definitive, it is typically based on the narrative provided by law enforcement and some level of investigation by the local coroner or medical examiner.  Finally, even if these are suicides, it is possible that the outcome might have been different if the case had been handled differently, for example, by calling in a crisis intervention team and deescalating effectively.
+
+The excluded case counts and fraction of total cases by year is shown in the table below.
+
+```{r tabSuicide}
+
+tab <- wa_2015 %>%
+  group_by(year, homicide) %>%
+  summarize(Number = n()) %>%
+  pivot_wider(id_cols = year,
+              names_from = homicide,
+              names_prefix = "N",
+              values_from = Number) %>%
+  replace_na(list(N0=0)) %>%
+  mutate(Percent = round(100*N0/(N0 + N1), 1),
+         year = as.character(year)) %>%
+  select(year, Number=N0, Percent) %>%
+  bind_rows(data.frame(year ="Total", 
+                       Number = sum(.$Number), 
+                       Percent = round(100*sum(.$Number)/nrow(wa_2015), 1)))
+
+tab %>%
+  kable(caption = "Cases labeled 'Suicide' by year",
+        col.names = c("Type", "Number", "Percent of all cases")) %>%
+  kable_styling(bootstrap_options = c("striped","hover"),
+                full_width = F) %>%
+  row_spec(dim(tab)[1], bold = T)  %>%
+  add_footnote(label = "These cases were excluded from analyses in this report",
+               notation = "symbol")
+```
+
+There are also a couple of cases where the cause of death is coded as "Medical emergency".  We exclude these cases from this report as well, as they do not meet the definition of "homicide."  But we note that in all of these cases, there was substantial interaction with the police in the period preceding the death, and the person died in police custody.  The cases in WA involved lengthy vehicular pursuits or physical restraints, and in the national level dataset, many of these cases involved the victim being restrained and injected with Ketamine by emergency responders.
+
+___
+
+
