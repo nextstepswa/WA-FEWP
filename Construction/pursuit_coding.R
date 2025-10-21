@@ -218,6 +218,7 @@ pursuit.coding.message <- "\n\n *** No new pursuit coding required *** \n\n"
   
   
 # Pull final pursuit variables from coded worksheet 
+# Note these use the feID series, with wa_local data indicated by feID >= 90000
 
 coded.pursuits <-  raw.coded.pursuits %>%
   mutate(vpursuit = if_else(!is.na(vpursuit.final), vpursuit.final, vpursuit.draft),
