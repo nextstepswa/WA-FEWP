@@ -278,6 +278,18 @@ wa_all_draft <- wa_mpv_fextra_all %>%
     TRUE ~ 0)
   ) %>%
   
+  ## shorten and harmonize agency.type names
+  mutate(agency.type = case_when(
+    grepl("Local", agency.type) ~ "Local PD",
+    grepl("Tribal", agency.type) ~ "Tribal PD",
+    grepl("Sheriff", agency.type) ~ "County SO",
+    grepl("County", agency.type) ~ "Other County",
+    grepl("Correc", agency.type) ~ "Corrections",
+    agency.type == "State Police" ~ "WSP",
+    grepl("Fed|US", agency.type) ~ "Federal",
+    TRUE ~ agency.type)
+  ) %>%
+  
   mutate(leg.year = 
            cut(date, 
                breaks = as.Date(paste(2000:(cut.yr), "-08-01", sep="")),
