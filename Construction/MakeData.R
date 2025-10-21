@@ -171,7 +171,7 @@ save(list = c("mpv_clean", "walocal_clean", "fe_clean_xtra", "wapo_clean_xtra",
               "last_date_wa", "last_date_mpv", 
               "last_data_update", "last_complete_mo", 
               "last_complete_yr", "last_update_is_eoy"),
-     file = here("Data", "Clean", "CleanData.rda"))
+     file = here("Data", "Clean", "CleanSourceData.rda"))
 
 update.message.wa <- paste("\n *** Last WA update: ", last_date_wa, "\n\n")
 update.message.mpv <- paste("\n *** Last MPV update: ", last_date_mpv, "\n\n")
@@ -230,9 +230,8 @@ wa_mpv_fextra_all <- wa_mpv %>%
     source1 ==2 ~ "FE",
     TRUE ~ "MPV")
   ) %>%
+  arrange(date) %>%
   select(-c(source1, source2))
-
-
 
 # Final variable prep for 2015+ WA data ----
 
@@ -270,6 +269,15 @@ cut.yr <- ifelse(curr.mo > 7, curr.yr+1, curr.yr)
 
 wa_all_draft <- wa_mpv_fextra_all %>% 
 
+  ## Create unique record locator using source, yr and seqnum
+  mutate(recID = paste(source, year, 1:nrow(wa_mpv_fextra_all), sep="-")) %>%
+  
+  ## all cases from MPV and WA are kbp, FE has only not.kbp
+  mutate(not.kbp = case_when(
+    source == "FE" ~ not.kbp,
+    TRUE ~ 0)
+  ) %>%
+  
   mutate(leg.year = 
            cut(date, 
                breaks = as.Date(paste(2000:(cut.yr), "-08-01", sep="")),
@@ -285,9 +293,10 @@ wa_all_draft <- wa_mpv_fextra_all %>%
   ) %>%
   
   # Select consensus variables, along with the few source-specific vars  
-  select(mpvID, waID, feID, wapoID, source,
+  select(recID, mpvID, waID, feID, wapoID, source,
          name:county, zip, latitude:agency.type, agency.ori, leg.year,
          description,
+         url_info, url_click,
          mh_crisis,
          # WA only variables
          circumstances, 
@@ -297,8 +306,7 @@ wa_all_draft <- wa_mpv_fextra_all %>%
          context:context.detail, call4svc, bodycam, threat.level, threat.description,
          officer.names:officer.previous,
          # Links (most from WA)
-         url_info, url_click,
-         officer_url:ME_url, url_pic, url.prosecutor,
+         officer_url:ME_url, url_pic, url_prosecutor = url.prosecutor,
          # Accountability info (MPV)
          case.disposition, criminal.charges, charge.outcome, 
          prosecutor.special, independent.investigation,
@@ -311,7 +319,7 @@ wa_all_draft <- wa_mpv_fextra_all %>%
 
 # Finalize pursuit coding for 2015+ ----
 ## See the external file for information on the process
-## Matching relies on feID, so merge the ID fields from WA and FE
+## Matching back on relies on feID, so merge the ID fields from WA and FE
 
 pursuit_draft_2015 <- wa_all_draft %>% 
   filter(year > 2014) %>%
@@ -366,24 +374,33 @@ wa_2015<- left_join(wa_2015_draft,  wa_leg_info_city)
 ## Note that the fe and mpv data include all cases, not just WA.
 ## For WA only analysis, use the wa_2015
 
+## All years
+selection <- "all years"
+wa_clean <- wa_all
+
+save(list = c("wa_clean", "fe_clean", "mpv_clean", "walocal_clean", 
+              "selection", "scrape_date"),
+     file = here("Data", "Clean", "WA_allyrs.rda"))
+
 ##  2015 and later ----
 selection <- "2015+"
-fe_data_2015 <- fe_clean %>% filter(date > "2014-12-31")
-mpv_data_2015 <- mpv_clean %>% filter(date > "2014-12-31")
-walocal_data <- walocal_clean
+wa_clean_2015 <- wa_2015
+fe_clean_2015 <- fe_clean %>% filter(date > "2014-12-31")
+mpv_clean_2015 <- mpv_clean %>% filter(date > "2014-12-31")
+walocal_clean_2015 <- walocal_clean %>% filter(date > "2014-12-31") # no cases yet, but may be in future
  
 
 last.name.message <- paste("\n *** Last WA fatality: ",
-                           wa_2015$name[nrow(wa_2015)],
-                           wa_2015$date[nrow(wa_2015)],
+                           wa_clean_2015$name[nrow(wa_clean_2015)],
+                           wa_clean_2015$date[nrow(wa_clean_2015)],
                            "\n\n")
 
-save(list = c("wa_2015", "fe_data_2015", "mpv_data_2015", "walocal_data", 
+save(list = c("wa_clean_2015", "fe_clean_2015", "mpv_clean_2015", "walocal_clean_2015", 
               "selection", "scrape_date", 
               "last_date_mpv", "last_date_wa",
               "last_data_update", "last_complete_mo", 
               "last_complete_yr", "last_update_is_eoy"),
-     file = here("Data", "Clean", "WA2015.rda"))
+     file = here("Data", "Clean", "WA_2015.rda"))
 
 
 # Print summary of run
