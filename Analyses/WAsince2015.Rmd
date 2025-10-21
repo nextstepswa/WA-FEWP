@@ -898,6 +898,7 @@ p <- ggplot(graphdf.calyr,
 ggplotly(p, tooltip = "text")
 
 ```
+
 #### Legislative year
 
 We start with the first complete legislative year.
