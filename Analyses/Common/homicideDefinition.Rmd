@@ -1,6 +1,5 @@
-# What is a homicide?
 
-The deadly force incidents in this report are homicides.  A homicide is simply defined as the killing of one person by another.  In the context of this report it refers to any encounter with law enforcement officers that results in a fatality.  Homicides normally result in a criminal investigation or inquest, but the word does not imply a crime has been committed.
+The deadly force incidents in this report are homicides (including vehicular homicides).  A homicide is simply defined as the killing of one person by another.  In the context of this report it refers to any encounter with law enforcement officers that results in a fatality.  Homicides normally result in a criminal investigation or inquest, but the word does not imply a crime has been committed.
 
 * The word homicide means only that the death was caused in some way by the officer.  
 

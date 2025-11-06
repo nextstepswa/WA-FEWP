@@ -14,7 +14,7 @@ params:
   from: ["2015"]
   startyr: [2015]
   startlegyr: ["2015-08-01"]
-  rdafile: ["WA2015.rda"]
+  rdafile: ["WA_2015.rda"]
   caption: ["WA since 2015"]
   smooth_span: [0.8]
 ---
@@ -60,11 +60,9 @@ with(homicides, write.csv(cbind(feID,latitude,longitude),
 
 ```
 
-# Introduction {.tabset}
+# Introduction {.tabset .tabset-pills}
 
-This report tracks the trends in people killed by police in WA since `r params$from`, a period that spans before and after a series of legislative reforms intended to reduce police violence and increase accountability for misconduct.  A brief overview of these changes is given in the [Legislative History](#legislative-history) section of this report.  
-
-The TOC on the left can be used to navigate through the sections of the report.  There are interactive maps with links to media reports, breakdowns by demographics, geography, cause of death, agency and time to provide some insight into the patterns and trends, and a list of all persons killed to acknowledge the lives lost and provide a starting point for those seeking more information on specific cases.  Information on the data sources and limitations can be found in the [Data sources](#data-sources) section.  The data and scripts used for this report are available on GitHub, access details can be found in the [Public Access](#public-access) section.
+This report tracks the trends in people killed by police in WA since `r params$from`, a period that spans before and after a series of legislative reforms intended to reduce police violence and increase accountability for excessive force and misconduct.  A brief overview of these changes is given in the [Legislative History](#legislative-history) section of this report.  
 
 
 ## MOST RECENT DATA UPDATE (`r last_data_update`):
@@ -75,7 +73,7 @@ The TOC on the left can be used to navigate through the sections of the report. 
 * __Last reported case: 
 `r last.name`, `r last.age`, on `r format(last.date, format="%B %d, %Y")` by `r last.agency`__
 
-    `r ifelse(last.name == "(Name not released)", "This", last.name)` is the `r paste0(tot.this.yr, num.suffix)` person killed by police in `r tot.yr.is`.  The cause of death is reported as `r last.cod`.  `r last.url`
+    `r ifelse(last.name == "(Name not released)", "This", last.name)` is the `r paste0(tot.this.yr, num.suffix)` person killed by police in `r tot.yr.is`.  The cause of death is reported as:  `r last.cod`.  `r last.url`
 
 Before the 2021 legislative reforms, one out of every 6 persons killed in Washington state was killed during an encounter with law enforcement.  (On average,
 about 250 homicide deaths were recorded each year in WA State from 2015-2020, with about 40 killed during encounters with police.  You can view and download the state's official death data
@@ -88,6 +86,12 @@ ____
 > *To find out more about what we do or get involved*, please email us at [Next Steps Washington](mailto:nextstepswa@gmail.com)
 
 ___
+
+## How to navigate this report
+
+The TOC on the left can be used to navigate through the sections of the report.  There are interactive maps with links to media reports, breakdowns by demographics, geography, cause of death, agency and time to provide some insight into the patterns and trends, and a list of all persons killed to acknowledge the lives lost and provide a starting point for those seeking more information on specific cases.  Information on the data sources and limitations can be found in the [Data sources](#data-sources) section.  The data and scripts used for this report are available on GitHub, access details can be found in the [Public Access](#public-access) section.
+
+____
 
 
 # Interactive Map
@@ -230,7 +234,7 @@ homicides %>%
     cod_3 = factor(
       case_when(
         cod == "Gunshot" ~ "shot", 
-        cod == "Vehicle" ~ "vehicle-related",
+        grepl("Vehicle|Motorcycle", cod) ~ "vehicle-related",
         TRUE ~ "other"),
       levels = c("shot", "vehicle-related", "other"))
   ) %>%
@@ -296,25 +300,28 @@ homicides %>%
 ```
 
 
-## Bodycam
+## Video
 
 This information comes from the MPV dataset, *so is not available for the data from other sources.*  These additional cases are listed as "Unknown" below.
 
 ```{r bodycam}
 homicides %>%
-  mutate(bodycam = if_else(bodycam != "None", "Yes", "No"),
-         bodycam = tidyr::replace_na(bodycam, "Unknown"),
-         bodycam = fct_relevel(bodycam, "Unknown", 
-                             after = Inf)) %>%
-  group_by(bodycam) %>%
+  mutate(
+    video = case_when(
+      grepl("Body|Surv", bodycam) ~ "Yes",
+      bodycam=="None" ~ "No",
+      TRUE ~ "Unknown"),
+    video = fct_relevel(video, "Unknown", 
+                        after = Inf)) %>%
+  group_by(video) %>%
   summarize(Number = n(),
             Percent = round(100*Number/nrow(homicides), 1)
   ) %>%
-  bind_rows(data.frame(bodycam ="Total", 
+  bind_rows(data.frame(video ="Total", 
                        Number = sum(.$Number), 
                        Percent = sum(.$Percent))) %>%
-  kable(caption = "Breakdown by Bodycam",
-        col.names = c("Bodycam", "Number", "Percent")) %>%
+  kable(caption = "Breakdown by video availability",
+        col.names = c("Video", "Number", "Percent")) %>%
   kable_styling(bootstrap_options = c("striped","hover")) %>%
   row_spec(row=4, bold = T)  %>%
   add_footnote(label = "Percents may not sum to 100 due to rounding",
@@ -376,7 +383,10 @@ homicides %>%
 
 ```{r agencyplot}
 homicides %>%
-  mutate(agencyR = ifelse(grepl(",", agency), "Multiple agencies", agency)) %>%
+  mutate(agencyR = ifelse(grepl(",", agency), "Multiple agencies", agency),
+         agencyR = sub("Police Department", "PD", agencyR),
+         agencyR = sub("Sheriff's Office", "SO", agencyR),         
+         ) %>%
   group_by(agencyR) %>%
   summarize(n = n(),
             perc = n / nrow(homicides)) %>%
@@ -592,13 +602,13 @@ p <- ggplot(df_by_month, aes(x = index.date,
   ylim(c(-2, NA)) + # min needs to be < smoother lower se
   
   scale_x_continuous(
-    breaks = df_by_month$index.date[seq(1, nrow(df_by_month), 6)],
-    label = df_by_month$mon.yr[seq(1, nrow(df_by_month), 6)]
+    breaks = df_by_month$index.date[seq(1, nrow(df_by_month), 12)],
+    label = df_by_month$year[seq(1, nrow(df_by_month), 12)]
     )  +
   
-  scale_y_continuous(breaks = c(0, 3, 6, 9, 12)) +
+  scale_y_continuous(breaks = seq(0, 12, by=2)) +
   
-  theme(axis.text.x = element_text(angle = 90, vjust = 0.5)) +
+  theme(axis.text.x = element_text(size = rel(0.8))) +
   theme(panel.grid.major = element_blank(),
         panel.grid.minor = element_blank())
 
@@ -670,6 +680,9 @@ p <- ggplot(df_by_month,
   geom_vline(aes(xintercept = as.numeric(date.2023.law), 
                  text = "2023 laws"), 
              col="blue", lty=2, alpha=.8) +
+    geom_vline(aes(xintercept = as.numeric(date.2024.rollback), 
+                 text = "2024 pursuit rollback"), 
+             col="blue", lty=2, alpha=.8) +
 
   # zero axis
   geom_hline(yintercept = 0, col="grey") +
@@ -682,15 +695,14 @@ p <- ggplot(df_by_month,
        caption = paste("WA since", params$startyr),
        fill = "Year") +
   
-  ylim(c(-2, NA)) + # min needs to be < smoother lower se
-  
   scale_x_continuous(
-    breaks = df_by_month$index.date[seq(1, nrow(df_by_month), 6)], 
-    label = df_by_month$mon.yr[seq(1, nrow(df_by_month), 6)])  +
+    breaks = df_by_month$index.date[seq(1, nrow(df_by_month), 12)],
+    label = df_by_month$year[seq(1, nrow(df_by_month), 12)]
+    )  +
   
-  scale_y_continuous(breaks = c(0, 3, 6, 9)) +
+  scale_y_continuous(breaks = seq(0, 12, by=2)) +
   
-  theme(axis.text.x = element_text(angle = 90, vjust = 0.5)) +
+  theme(axis.text.x = element_text(size = rel(0.8))) +
   theme(panel.grid.major = element_blank(),
         panel.grid.minor = element_blank())
 
@@ -834,7 +846,7 @@ ggplot(data= df %>% filter(year != max(df$year)),
            color = factor(year),
            group = year)) +
   
-  geom_line(size = 1, alpha = .5) +
+  geom_line(size = 1, alpha = .4) +
   geom_point(aes(text = paste('Total =', cumulative, '<br>', 
                               mon, '<br>', year)),
                  size=1, alpha = .3) +
@@ -856,8 +868,9 @@ ggplot(data= df %>% filter(year != max(df$year)),
        caption = paste("WA since", params$startyr),
        color = "Previous Yrs") +
   
-  guides(color = guide_legend(order = 1),
-         linetype = guide_legend(order = 2))
+  guides(linetype = guide_legend(order = 1),
+         color = guide_legend(order = 2)
+         )
 
 #ggplotly(p, tooltip = "text")
   
@@ -879,7 +892,7 @@ p <- ggplot(graphdf.calyr,
            fill = Num,
            text = Num)) +
   
-  geom_bar(stat = "identity") + 
+  geom_bar(stat = "identity", color="gray20") + 
 
   scale_fill_gradient(low = "seashell", high = "firebrick",
                       guide = "none") +
@@ -915,7 +928,7 @@ p <- ggplot(graphdf.legyr,
            fill = Num,
            text = Num)) +
   
-  geom_bar(stat = "identity") + 
+  geom_bar(stat = "identity", color="gray20") + 
 
   scale_fill_gradient(low = "seashell", high = "firebrick",
                       guide = "none") +
@@ -958,10 +971,10 @@ graphdf.calyr <-  homicides %>%
   mutate(
     cod_3 = factor(
       case_when(
-        cod == "Gunshot" ~ "shot", 
-        grepl("Active|Terminated", vpursuit) ~ "vehicle pursuit",
-        TRUE ~ "other"),
-      levels = c("shot", "vehicle pursuit", "other")),
+        cod == "Gunshot" ~ "Shot", 
+        grepl("Active|Terminated", pursuit.type) ~ "Vehicle pursuit",
+        TRUE ~ "Other"),
+      levels = c("Shot", "Vehicle pursuit", "Other")),
     year = as.character(year)) %>%
   group_by(year, cod_3) %>%
   summarize(n = n()) %>%
@@ -971,10 +984,10 @@ p <- ggplot(graphdf.calyr,
             aes(x = year, y = n,
              fill = cod_3, 
              text = paste0("N=", n, 
-                           ", (", round(percent),"%)"))
+                           " (", round(percent),"%)"))
          ) +
   
-  geom_bar(stat="identity", alpha=.5,
+  geom_bar(stat="identity", alpha=.5, color = "grey",
            position = position_stack(reverse=T)) +
   
   annotate("text", 
@@ -1005,10 +1018,10 @@ graphdf.legyr <-  homicides %>%
   mutate(
     cod_3 = factor(
       case_when(
-        cod == "Gunshot" ~ "shot", 
-        grepl("Active|Terminated", vpursuit) ~ "vehicle pursuit",
-        TRUE ~ "other"),
-      levels = c("shot", "vehicle pursuit", "other")),
+        cod == "Gunshot" ~ "Shot", 
+        grepl("Active|Terminated", pursuit.type) ~ "Vehicle pursuit",
+        TRUE ~ "Other"),
+      levels = c("Shot", "Vehicle pursuit", "Other")),
     year = as.character(year)) %>%
   group_by(leg.year, cod_3) %>%
   summarize(n = n()) %>%
@@ -1018,10 +1031,10 @@ p <- ggplot(graphdf.legyr,
             aes(x = leg.year, y = n,
                 fill = cod_3, 
                 text = paste0("N=", n, 
-                              ", (", round(percent),"%)"))
+                              " (", round(percent),"%)"))
             ) +
   
-  geom_bar(stat="identity", alpha=.5,
+  geom_bar(stat="identity", alpha=.5, color = "grey",
            position = position_stack(reverse=T)) +
   
   annotate("text", 
@@ -1048,7 +1061,7 @@ ggplotly(p, tooltip = "text")
 
 # WA vs. other states
 
-Here we report the annual totals up through the last complete year --  `r last_complete_yr` -- with data from the MPV project only, since it provides the only consistent data series.  This limits the cases to those meeting the MPV inclusion criteria (excludes suicides and most pursuit related fatalities).
+Here we report the annual totals up through the last complete year --  `r last_complete_yr` -- with data from the MPV project only, since MPV provides the only consistent national data series.  This limits incidents to those meeting the MPV inclusion criteria, which includes people killed by police with firearms, tasers, asphyxiation and other uses of force, but excludes most pursuit related fatalities.
 
 ## Compared to all other states {.tabset}
 
@@ -1058,7 +1071,7 @@ Here we report the annual totals up through the last complete year --  `r last_c
 
 # Note: current year values are hardcoded here and need to be updated on Jan 1 of each year.
 
-mpv_tab <- mpv_data_2015 %>% 
+mpv_tab <- mpv_clean_2015 %>% 
     filter(year >= start_yr & year <= last_complete_yr) %>%
   #filter(match(month, month.abb) <= last_mpv_date - 1) %>%
   mutate(wa = ifelse(st == "WA", "WA", "All other states")) %>%
@@ -1093,13 +1106,13 @@ pop <- left_join(pop2020, pop2024, by = "NAME") %>%
   rename("state" = "NAME")
 
 
-rates.tmp <- mpv_data_2015 %>% 
+rates.tmp <- mpv_clean_2015 %>% 
   filter(year >= start_yr & year <= last_complete_yr) %>%
   mutate(wa = ifelse(st == "WA", 1, 0)) %>%
   group_by(state, year) %>%
   count() %>%
   pivot_wider(names_from = year,
-              names_prefix = "shot",
+              names_prefix = "killed",
               values_from = n) %>%
   mutate(across(everything(), ~replace_na(., 0)))  %>%
   bind_rows(data.frame(c(pop[1,1], bind_rows(.[,-1] %>% map_dbl(., sum, na.rm=T))))) %>%
@@ -1111,15 +1124,15 @@ notwa <- data.frame(state="All Other States",
 # using rates per million
 states.all <- bind_rows(rates.tmp, notwa) %>%
   # h/t https://stackoverflow.com/questions/69831615/dividing-a-set-of-columns-by-another-set-of-columns-based-on-their-column-names
-  mutate(across(starts_with('shot'), 
-                ~ 1000000 * ./get(str_replace(cur_column(), 'shot', 'POPESTIMATE')), 
+  mutate(across(starts_with('killed'), 
+                ~ 1000000 * ./get(str_replace(cur_column(), 'killed', 'POPESTIMATE')), 
                 .names = 'rate{.col}'))
 
 state.rates <- states.all %>%
   select(state, contains("rate")) %>%
   pivot_longer(contains("rate"),
                names_to = "year") %>%
-  mutate(year = as.numeric(sub("rateshot", "", year))) %>%
+  mutate(year = as.numeric(sub("ratekilled", "", year))) %>%
   rename("rate" = "value")
 
 
@@ -1129,7 +1142,7 @@ state.rates <- states.all %>%
 
 ### Population adjusted rate
 
-The number of people shot is represented here as a population-adjusted rate per million residents, which makes it possible to compare states with different sized populations.  The raw numbers are given on the next tab.
+The number of people killed is represented here as a population-adjusted rate per million residents, which makes it possible to compare states with different sized populations.  The raw numbers are given on the next tab.
 
 ```{r wavsus-rates, warning=F}
 
@@ -1137,19 +1150,19 @@ p <- ggplot(state.rates %>% filter(grepl("Washington|Other", state)),
        aes(x=factor(year), y=rate, 
            group=state, fill=state,
            text =paste("rate: ", round(rate, 1)))) + 
-  geom_col() + #coord_flip() +
+  geom_col(alpha = 0.7) + #coord_flip() +
   facet_wrap(~state) +
   
   theme(axis.text.x = element_text(size = 6),
         axis.text.y = element_text(size = 8)) +
   
   labs(title = "Rate of persons killed by police: MPV data",
-       x="Year", y="Rate per million")
+       x="Year", y="Rate per million residents")
 
 ggplotly(p, tooltip = "text")
 ```
 
-### Number shot and annual percent change
+### Number killed and annual percent change
 
 ```{r wavsus-totals, warning=F}
 kable(mpv_tab,
@@ -1177,16 +1190,16 @@ Here we report the MPV data by state for the most recent complete year: `r last_
 
 * The bar for WA State is highlighted with a black border.
 
-* These are interactive plots:  You can hover over bars to get the exact values for the number of persons shot in `r last_complete_yr`.
+* These are interactive plots:  You can hover over bars to get the exact values for the number of persons killed in `r last_complete_yr`.
 
 ```{r strank-number, warning=F, fig.height=7}
 
 p <- ggplot(data = states.all %>% filter(!grepl("United|Other", state)),
-            aes(x=shot2024, y=reorder(state, shot2024), 
-                fill = shot2024,
+            aes(x=killed2024, y=reorder(state, killed2024), 
+                fill = killed2024,
                 color = factor(ifelse(state=="Washington", 1, 0)),
                 text=paste(state, 
-                           "total:", shot2024))) +
+                           "total:", killed2024))) +
               
   geom_col() +
     
@@ -1195,12 +1208,12 @@ p <- ggplot(data = states.all %>% filter(!grepl("United|Other", state)),
     low = "blue", 
     mid = "white", 
     high = "red", 
-    midpoint = median(states.all$shot2024)) +
+    midpoint = median(states.all$killed2024)) +
   #scale_x_continuous(labels = scales::percent) +
   
   theme(axis.text.y=element_text(size=rel(.7)), legend.position = "none") +
-  labs(title = paste("State ranking: Number of persons shot by police in", last_complete_yr),
-       x="Number shot",
+  labs(title = paste("State ranking: Number of persons killed by police in", last_complete_yr),
+       x="Number killed",
        y="State")
 
 ggplotly(p, tooltip = "text")
@@ -1213,17 +1226,17 @@ ggplotly(p, tooltip = "text")
 
 * The bar for WA State is highlighted with a black border.
 
-* These are interactive plots:  You can hover over bars to get the exact values for the rate of persons shot in `r last_complete_yr`.
+* These are interactive plots:  You can hover over bars to get the exact values for the rate of persons killed in `r last_complete_yr`.
 
 
 ```{r strank-rate, warning=F, fig.height=7}
 
 p <- ggplot(data = states.all %>% filter(!grepl("United|Other", state)),
-            aes(x=rateshot2024, y=reorder(state, rateshot2024), 
-                fill = rateshot2024,
+            aes(x=ratekilled2024, y=reorder(state, ratekilled2024), 
+                fill = ratekilled2024,
                 color = factor(ifelse(state=="Washington", 1, 0)),
                 text=paste(state, 
-                           "total:", round(rateshot2024, 1)))
+                           "total:", round(ratekilled2024, 1)))
             ) +
               
   geom_col() +
@@ -1233,11 +1246,11 @@ p <- ggplot(data = states.all %>% filter(!grepl("United|Other", state)),
     low = "blue", 
     mid = "white", 
     high = "red", 
-    midpoint = median(states.all$rateshot2024)) +
+    midpoint = median(states.all$ratekilled2024)) +
   #scale_x_continuous(labels = scales::percent) +
   
   theme(axis.text.y=element_text(size=rel(.7)), legend.position = "none") +
-  labs(title = paste("State ranking: Population adjusted rate of persons shot by police in", last_complete_yr),
+  labs(title = paste("State ranking: Population adjusted rate of persons killed by police in", last_complete_yr),
        x="Rate per million residents",
        y="State")
 
@@ -1253,20 +1266,20 @@ ggplotly(p, tooltip = "text")
 
 * The bar for WA State is highlighted with a black border.
 
-* These are interactive plots:  You can hover over bars to get the exact values for the number of persons shot in `r last_complete_yr` year, and the percent change from the previous year.
+* These are interactive plots:  You can hover over bars to get the exact values for the number of persons killed in `r last_complete_yr` year, and the percent change from the previous year.
 
 ```{r strank-change, warning=F, fig.height=7}
 df <- states.all %>% 
   filter(!grepl("United|Other", state)) %>%
-  select(state, shot2023:shot2024) %>%
-  mutate(pct.chg = shot2024/shot2023 -1)
+  select(state, killed2023:killed2024) %>%
+  mutate(pct.chg = killed2024/killed2023 -1)
 
 p <- ggplot(data = df,
             aes(x=pct.chg, y=reorder(state, pct.chg), 
                 fill = pct.chg,
                 color = factor(ifelse(state=="Washington", 1, 0)),
                 text=paste0(state, 
-                           paste("<br>", "number shot in ", last_complete_yr, ": ", shot2024),
+                           paste("<br>", "number killed in ", last_complete_yr, ": ", killed2024),
                            paste("<br>", "change from last year: ", scales::percent(pct.chg, acc = 1))))
             ) +
               
@@ -1281,7 +1294,7 @@ p <- ggplot(data = df,
   scale_x_continuous(labels = scales::percent) +
   
   theme(axis.text.y=element_text(size=rel(.7)), legend.position = "none") +
-  labs(title = paste("State ranking: Percent change in number of persons shot by police",
+  labs(title = paste("State ranking: % change in number of persons killed by police",
                      last_complete_yr-1, "-", last_complete_yr),
        x="Percent change",
        y="State")
@@ -1295,6 +1308,7 @@ ggplotly(p, tooltip = "text")
 
 # Say their names {.tabset}
 
+
 ## Name known
 
 Of the `r last.case` persons killed by police, 
@@ -1306,10 +1320,13 @@ NOTE:  There are 2 tabs above, one for the names we do know, the other for the n
 ```{r names}
 
 homicides %>%
+  mutate(date = as.Date(date)) %>%
+  arrange(desc(date)) %>%
+  #mutate(date = format(as.Date(date), format = "%m/%d/%Y")) %>% can't use format, sorting fails
   filter(name != "Unknown") %>%
   select(name, date, age=age, race, county, `WA-LD`=WA_District, 
          agency, link = url_click) %>%
-  arrange(desc(date)) %>%
+ 
   DT::datatable(rownames = F,
                 caption = paste("The Names We Know:  as of", scrape_date),
                 filter = 'top',
@@ -1331,6 +1348,8 @@ of the victim's names are not known at this time.  In the table below "WA-LD" re
 
 ```{r namesUnk}
 homicides %>%
+  mutate(date = as.Date(date)) %>%
+  arrange(desc(date)) %>%
   filter(name == "Unknown") %>%
   select(name, date, age=age, race, county, `WA-LD`=WA_District, 
          agency, link = url_click) %>%
@@ -1396,6 +1415,8 @@ ____
 
 ```{r datasets, child='./Common/datasetDiscussion.Rmd'}
 ```
+
+## What is a homicide?
 
 ```{r child='./Common/homicideDefinition.Rmd'}
 ```

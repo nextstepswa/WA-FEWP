@@ -1,27 +1,19 @@
 #----------------------------------------------------------------- 
 # This child script creates the common datafiles and variables used in
-# WA since 940 and 2015 analyses.
+# WA since 2015 analyses.
 # It relies on the params set in the yaml header of the parent .Rmd files 
-# for each of those reports
+# (in case different time-frames are selected)
 #-----------------------------------------------------------------
 
 # Select homicides by police and use age from FE
 
-homicides <- wa_2015 %>% 
-  filter(homicide==1) %>%
+homicides <- wa_clean_2015 %>% 
+  filter(mod != "Suicide" & !grepl("Medical|Ketamine", cod)) %>%
+  
   mutate(age = ifelse(age==999, NA_real_, age)) %>%
-  mutate(
-    cause.of.death = case_when(
-      cod == "Vehicle" & pursuit.type == "Pursuit" ~ "accident during a police vehicular pursuit",
-      cod == "Vehicle" & pursuit.type == "Attempted stop" ~ "vehicle accident following an attempted stop by police",
-      cod == "Vehicle" & pursuit.type == "Vehicle accident" ~ "vehicle accident by an on-duty officer",
-      cod == "Vehicle" & pursuit.type == "Involved pursuit" ~ "accident involving a police pursuit", # 2 odd cases, 26719 and 90019
-      pursuit.type == "Involved pursuit" ~ paste(cod, "after a police vehicular pursuit")),
-    cause.of.death = if_else(is.na(cause.of.death), as.character(cod), cause.of.death)
-  ) %>%
   arrange(date)
 
-all.cases <- nrow(wa_2015)
+all.cases <- nrow(wa_clean_2015)
 all.homicides <- nrow(homicides)
 
 
@@ -58,7 +50,7 @@ last.age <- ifelse(is.na(last.case.info$age),
                    paste(last.case.info$age, "years old"))
 last.agency <- last.case.info$agency
 
-last.cod <- last.case.info$cause.of.death
+last.cod <- last.case.info$cod
 
 
 
@@ -122,6 +114,7 @@ date.lastbillsign <- lubridate::ymd("2021-04-26")
 date.2021.law <- lubridate::ymd("2021-07-25")
 date.2022.law <- lubridate::ymd("2022-03-17")
 date.2023.law <- lubridate::ymd("2023-05-04")
+date.2024.rollback <- lubridate::ymd("2024-06-05")
 
 ## Prosecution
 date.sarey.charged <- lubridate::ymd("2020-08-20")

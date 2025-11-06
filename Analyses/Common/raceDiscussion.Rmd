@@ -11,21 +11,50 @@ Racial disparities in the risk of being killed by police are one of the most imp
 ## https://www.ofm.wa.gov/washington-data-research/statewide-data/washington-trends/population-changes/population-race
 ## https://statisticalatlas.com/state/Washington/Race-and-Ethnicity
 
-pop.W <- 6020427/7649844
-pop.NHW <- 0.704
-pop.NHB <- 0.036
+wa_ofm_pop_total <- readxl::read_xlsx(here::here("Data", "Raw", "ofm_pop_sade_state_2020_2024.xlsx"), sheet="Total")
+wa_ofm_pop_hisp <- readxl::read_xlsx(here::here("Data", "Raw", "ofm_pop_sade_state_2020_2024.xlsx"), sheet="Hispanic")
+wa_ofm_pop_nonhisp <- readxl::read_xlsx(here::here("Data", "Raw", "ofm_pop_sade_state_2020_2024.xlsx"), sheet="Non-Hispanic")
 
-prop.wea <- prop.table(table(homicides$race))[["WEA"]]
-prop.baa <- prop.table(table(homicides$race))[["BAA"]]
+# 2020 Census WA populations by race
+pop.tot <- wa_ofm_pop_total %>% filter(Year==2020 & `Age Group` == "Total") %>% 
+  select(Total) %>% as.numeric()
+pop.w <- wa_ofm_pop_total %>% filter(Year==2020 & `Age Group` == "Total") %>% 
+  select(`White Total`) %>% as.numeric()
+pop.b <- wa_ofm_pop_total %>% filter(Year==2020 & `Age Group` == "Total") %>% 
+  select(`Black Total`) %>% as.numeric()
+pop.hisp <- wa_ofm_pop_hisp %>% filter(Year==2020 & `Age Group` == "Total") %>% 
+  select(`Hispanic Total`) %>% as.numeric()
+pop.nhw <- wa_ofm_pop_nonhisp %>% filter(Year==2020 & `Age Group` == "Total") %>% 
+  select(`Non-Hispanic White Total`) %>% as.numeric()
+pop.nhb <- wa_ofm_pop_nonhisp %>% filter(Year==2020 & `Age Group` == "Total") %>% 
+  select(`Non-Hispanic Black Total`) %>% as.numeric()
 
-rr.wea <- round(prop.wea/pop.NHW - 1, 2)
-rr.baa <- round(prop.baa/pop.NHB - 1, 2)
+# Proportions
+prop.w.census <- pop.w/pop.tot
+prop.b.census <- pop.b/pop.tot
+prop.hisp.census <- pop.hisp/pop.tot
+prop.nhw.census <- pop.nhw/pop.tot
+prop.nhb.census <- pop.nhb/pop.tot
 
+# Proportions for fatalities with race reported
+hkr <- homicides %>% filter(race != "Unknown")
+prop.wea.walocal <- prop.table(table(hkr$race))[["WEA"]]
+prop.baa.walocal <- prop.table(table(hkr$race))[["BAA"]]
+prop.hisp.walocal <- prop.table(table(hkr$race))[["HL"]]
+
+# And proportions with unknown race
+prop.wea.walocal.all <- prop.table(table(homicides$race))[["WEA"]]
+prop.unk.walocal  <- prop.table(table(homicides$race))[["Unknown"]]
+
+# Relative risks of being killed
+rr.wea <- round(prop.wea.walocal/prop.nhw.census - 1, 2)
+rr.baa <- round(prop.baa.walocal/prop.nhb.census - 1, 2)
+rr.hisp <- round(prop.hisp.walocal/prop.hisp.census - 1, 2)
 ```
 
 ____
 
-#### How is race identified?
+#### How is race identified in our data?
 
 All crowd-sourced datasets rely primarily on media reports to find cases, and these media reports rarely include information on the race of the person killed.  Each of the projects that provide data for this report has made additional efforts made to identify race.
 
@@ -41,32 +70,38 @@ The MPV project makes extensive additional efforts to identify the race of the p
 
 The FE project used a statistical imputation model to predict race for the missing cases.  A brief description of the methodology is online [here](https://docs.google.com/spreadsheets/d/1dKmaV_JiWcG8XBoRgP8b4e9Eopkpgt7FL7nyspvzAsE/edit#gid=1359780841&range=A9).  They were able to impute just over half of the missing cases with reasonable confidence, and we use these imputations for the FE data in this report.
 
+
+* Incarcernation
+
+The IN project do not provide a description of the methods they use for coding race, but their records typically include information on the race of the person killed, as well as a photo.
+
+
 * WA local
 
 The local project conducts a search for coroner/ME reports, obituaries, multiple media reports and social media channels for information that can be used to assign the race of the person killed.
 
 
-#### How often is race missing?
+#### How often is race missing in our data?
 
-
-We use a hierarchical assignment of race for the data in this report:  MPV data when available, WA local data for recent cases not included in MPV, and Fatal Encounters (FE) with imputation for cases excluded from both MPV and WA local data.
+We use a hierarchical assignment of race for the data in this report:  MPV data when available, IN data when available, WA local data for cases not included in MPV or IN, and Fatal Encounters (FE) with imputation for cases uniquely contributed by FE.
 
 ```{r racesource,  message=F, warning=F}
 tab <- homicides %>%
-#  mutate(Race = if_else(race == "Unknown", "Missing", "Available")) %>%
   mutate(race = factor(race),
          Race = fct_relevel(race, "Unknown", after = Inf)) %>%
-  group_by(Race, source) %>%
+  group_by(Race, Source=source) %>%
   count()  %>%
   
   pivot_wider(names_from = Race, values_from = n) %>%
   ungroup() %>%
+  mutate(across(where(is.numeric), ~replace_na(., 0))) %>%
 
-  add_row(source = "Total", summarise(., across(where(is.numeric), sum))) %>%
+  add_row(Source = "Total", summarise(., across(where(is.numeric), sum))) %>%
 
   rowwise() %>%
-  mutate(Total = sum(across(API:Unknown)),
-         "Unknown Pct" = round(100*Unknown/Total, 1))
+  mutate(Total = sum(across(where(is.numeric))),
+         "Unknown Pct" = round(100*Unknown/Total, 1)) %>%
+  arrange(Total)
 
 
 tab %>%
@@ -83,69 +118,136 @@ tab %>%
 
 ____
 
-#### We are reporting the raw counts in this report, not per capita rates
+#### Reported vs. self-identified race
+
+The race classification in our data represent the subject's race as reported by by some other person -- law enforcement, an ME/Coroner, a journalist, or a coder for one of the open-source projects that we draw from.  It may be that person's perception, or it may be informed by interactions with the subject's friends or family, we have no way of knowing. 
+
+*Bottom line:*  The accuracy of the race classification in the data we have is unknown. 
+
+____
+
+#### We report the raw counts in this report, not per capita rates
 
 Breaking the total count down by race, the largest single group of persons killed by police are identified as White/European-American: `r scales::percent(prop.table(table(homicides$race))[["WEA"]])`
 
 So, does this mean that we can say: "There aren't any racial disparities in persons killed by police?".  
   
-No. This raw count can not be used to assess racial disparities, because the word disparity implies the risk is "disproportionate" -- that is, higher (or lower) than proportional.  Proportional is a comparative term: it compares the proportion of fatalities by race, to the proportion of the population by race.  If the two proportions are the same, then we can say there are no disparities.  In this case, if `r scales::percent(prop.table(table(homicides$race))[["WEA"]])` of the population is White, then we can say that their risk of being killed by police is proportional to their share of the population.
+No. This raw count can not be used to assess racial disparities, because the word disparity implies the risk is "disproportionate" -- that is, higher (or lower) than proportional.  Proportional is a comparative term: it compares the proportion of fatalities by race, to the proportion of the population by race.  If the two proportions are the same, then we can say there are no disparities.  In this case, if `r scales::percent(prop.table(table(homicides$race))[["WEA"]])` of the WA state population is White, *only then* would we be able to say that their risk of being killed by police is proportional to their share of the population.
 
 *Bottom line:* The raw counts can not be used to identify racial disparities.
 
 ____
 
 
-#### So why don't we calculate standardized per capita rates?
+#### Why don't we calculate standardized per capita rates?
 
-Because the classification of cases by race, in the MPV and Fatal Encounters datasets, is not consistent with the classification of race in the US Census population data that are needed to calculate per capita rates.  
+We don't calculate standardized per capita rates because the race categories our dataset are not consistent with the race categories used by the US Census.  This is currently a limitation shared by all of the open-source datasets we rely on.  
 
-The calculation of per capita rates takes the ratio of the fatality count (in the numerator) to the population count (in the denominator).  To break this down by race we need a consistent measure of race to use for the numerator and denominator for all groups.  And we don't have that.
+Per capita rates are calculated by taking the ratio of the fatality count (in the numerator) to the population count (in the denominator).  This requires a consistent measure of race to use for the cases in the numerator and denominator - and we don't have that.  Census race categories are different for three reasons:
 
-* About 5% of people in WA state report two or more races in the US Census.  This multiple-race classification does not exist in the datasets on persons killed by police.
+* The Census allows for multiple race coding:  About 5% of people in WA state report two or more races in the Census.  This type of multiple-race classification does not exist in the data from any of our source datasets, and it is almost never used in reports on persons killed by police, law enforcement statistics, or official medical examiner reports.  The likely reason for this is because the Census categories are self-reported -- by the persons themselves -- while race classification in the other settings is assigned by someone to another (deceased) person.
 
-* Hispanic/Latinx is an ethnicity that crosses several racial groups, primarily White, Black and Native American.  In the US Census data, race is measured separately from ethnicity, so you can see these overlaps.  But in the MPV and Fatal Encountersdatasets, "Hispanic" is coded as a racial group, rather than as a separate ethnicity classification.
+* The Census categories for single race are different: The standardized Census categories for race are American Indian/Alaska Native, Asian, Black, Native Hawaiian/Pacific Islander, White.  Slightly different versions are used in each of our source datasets.
+
+* The Census separates the coding of race from ethnicity:  Hispanic/Latinx is an ethnicity that crosses several racial groups, primarily White, Black and Native American.  In the US Census data, ethnicity is measured separately from race, so one can observe both values for each person.  In all of our source datasets, "Hispanic" is coded as one of the racial classifications, rather than as a separate ethnicity classification, so the race of Hispanic persons can not be observed.
 
 *For more information on how the Census codes race and ethnicity:*
 
 [U.S. Decennial Census Measurement of Race and Ethnicity Across the Decades: 1790–2020](https://www.census.gov/library/visualizations/interactive/decennial-census-measurement-of-race-and-ethnicity-across-the-decades-1790-2020.html)
 
-*Bottom line:* The mismatch between racial categories coded in the FE and WaPo data, and the categories used in the US Census makes it impossible to calculate per capita rates accurately for all groups.
+*Bottom line:* The mismatch between racial categories coded in our data, and the categories used in the US Census makes it impossible to calculate per capita rates accurately for all groups.
 
 ____
 
-#### What we *can* say about disparities in WA State
 
-The population of Washington State overwhelmingly identifies as White --  `r scales::percent(pop.W, accuracy=1)` in 2020 [source: WA State OFM](https://www.ofm.wa.gov/washington-data-research/statewide-data/washington-trends/population-changes/population-race).  If we exclude Hispanics (which the Census treats as ethnicity, not race), non-Hispanic Whites comprise
-`r scales::percent(pop.NHW, accuracy=1)` of the WA population
-[source: Statistical Atlas of the US](https://statisticalatlas.com/state/Washington/Race-and-Ethnicity).  By contrast only  `r scales::percent(prop.wea, accuracy=1)` of the persons killed by police are identified as non-Hispanic White.
+#### What can we say about racial disparities in the police use of deadly force in WA State?
 
-So there is a racial disparity in the risk of being killed by police:
+We can say that, while we can not estimate the disparities with precision, or for all groups, the the data do suggest there are racial disparities in the police use of deadly force in WA State.  
 
-> The risk for non-Hispanic Whites is disproportionately low, because their share of fatalities is *lower* than their population share.  
-  
-The "risk ratio" is a common way to combine this information into a single number that is easy to understand:  the ratio of the fatality share to the population share.  When the two shares are the same, the risk ratio equals 1.  When it is less than one, this means the share of fatalities is lower than the population share; the risks are disproportionately low.  When the risk ratio is greater than one it means the share of fatalities is larger than the population share; the risks are disproportionately high.  
+The population of Washington State overwhelmingly identifies as White --  `r scales::percent(prop.w.census, accuracy=1)` in the last US Census -- while the fraction who identify as Black is `r scales::percent(prop.b.census, accuracy=1)`
+(2020, 
+[source: WA State OFM](https://ofm.wa.gov/data-research/population-demographics/estimates/age-sex-race-and-hispanic-origin/) for this and all other population estimates in this section).  The fraction (of all races) who report Hispanic ethnicity is 
+`r scales::percent(prop.hisp.census, accuracy=1)`.  If we restrict the focus to non-Hispanics, these fractions drop to 
+`r scales::percent(prop.nhw.census, accuracy=1)` and `r scales::percent(prop.nhb.census, accuracy=1)` for those who identify as White and Black respectively.
 
-This can be summarized as a percentage: 100*(risk ratio-1), which tells you the percent lower (or higher) the risk ratio is than expected if the risk was proportional to the share of population. 
+For these three groups -- non-Hispanic White, non-Hispanic Black and Hispanic -- our source data are coded in a way that we can compare our data to the Census populations, if we make three assumptions:
+
+* First, that that cases classified as "White" or "Black" in the our datasets are not Hispanic -- because they would be classified as Hispanic otherwise -- and that cases classified as "Hispanic" in our dataset include all races.
+
+* Second, that the coding of race and Hispanic origin in our dataset are accurate, and
+
+* Third, that all race/Hispanic groups are equally likely to be coded as "unknown" race in our data. 
+
+Under these assumptions (or, to the extent that they hold) we can compare the fraction of each group in the fatality data to their fraction in WA population.  The table below shows this, along with a summary based on the "risk ratio".
+
+The "risk ratio" is the ratio of the fatality share to the population share.  When the two shares are the same, the risk ratio equals 1.  When the risk ratio is less than one, this means the share of fatalities is lower than the population share; the risks are disproportionately low.  When the risk ratio is greater than one it means the share of fatalities is larger than the population share; the risks are disproportionately high.  
+
+This can be translated into a relative risk percentage: 100*(risk ratio-1), representing the percent lower (or higher) the risk ratio is than expected if the risk was proportional to the share of population. 
+
+```{r race.tab, message=F, warning=F}
+
+tab.all <- homicides %>%
+  group_by(race) %>%
+  summarize(all.cases = n()) %>%
+  mutate(pct.all = round(100*all.cases/sum(all.cases), 1)) %>%
+  filter(race %in% c("BAA", "HL", "WEA", "Unknown"))
+
+tab.known <- homicides %>%
+  filter(race != "Unknown") %>%
+  group_by(race) %>%
+  summarize(known.cases = n()) %>%
+  mutate(pct.known = round(100*known.cases/sum(known.cases), 1)) %>%
+  filter(race %in% c("BAA", "HL", "WEA")) %>%
+  select(-known.cases)
+
+tab.pop <- data.frame(race = c("BAA", "HL", "WEA"),
+                      pct.pop = c(round(100*prop.nhb.census,1), round(100*prop.hisp.census, 1), 
+                                  round(100*prop.nhw.census,1))
+                      )
+
+tab <- tab.all %>%
+  left_join(tab.known) %>%
+  left_join(tab.pop) %>%
+  mutate(#rr.all = round((pct.all/pct.pop -1), 2),
+         rr.known = round((pct.known/pct.pop - 1), 2)) %>%
+  rename(Race=race, Fatalities=all.cases, "Percent (all cases)"=pct.all,
+         "Percent (known race)"=pct.known, "Percent (WA pop)"=pct.pop, "Relative Risk" =rr.known) %>%
+  mutate(Race = case_match(
+    Race, "BAA" ~ "Black/African-American", 
+    "HL" ~ "Hispanic/Latinx", 
+    "WEA" ~ "White/European-American",
+    .default = Race)
+  )
+
+tab %>% 
+    kable(caption = "Police use of deadly force by race: Relative risks") %>%
+  kable_styling(bootstrap_options = c("striped","hover")) %>%
+  add_footnote(label = "Relative risks are calculated based on percent of fatalities with known race",
+               notation = "symbol")
+```
 
 In WA State:
 
-  * For non-Hispanic whites this value is `r paste("100*(", scales::percent(prop.wea), "/", scales::percent(pop.NHW), "-1) =", rr.wea)` -- their risk of being killed by police is `r scales::percent(abs(rr.wea))` lower than expected. 
+  * For non-Hispanic Whites/European Americans this value is `r paste("100*(", scales::percent(prop.wea.walocal), "/", scales::percent(prop.nhw.census), "-1) =", rr.wea)` -- their risk of being killed by police is `r scales::percent(abs(rr.wea))` lower than expected. 
   
-  * For Blacks/African Americans this value is `r paste("100*(", scales::percent(prop.baa), "/", scales::percent(pop.NHB), "-1) = ", rr.baa)` -- their risk of being killed by police is `r scales::percent(rr.baa)` higher than expected.
+  * For non-Hispanic Blacks/African Americans this value is `r paste("100*(", scales::percent(prop.baa.walocal), "/", scales::percent(prop.nhb.census), "-1) = ", rr.baa)` -- their risk of being killed by police is `r scales::percent(rr.baa)` higher than expected.
+  
+  * For Hispanics this value is `r paste("100*(", scales::percent(prop.hisp.walocal), "/", scales::percent(prop.hisp.census), "-1) = ", rr.hisp)` -- their risk of being killed by police is `r scales::percent(rr.hisp)` higher than expected.
 
-Note that the number of "unknown race" cases after imputation is not enough to change the direction of these disparities.  Even if we assume that all of the "unknown race" cases are White, their share of incidents would still be below their share in the population. 
+Note the direction of these disparities is robust to one of our assumptions:  that each group is equally likely to be reported as "race unknown".  Even if we assume that all of the "Unknown" race cases are non-Hispanic White, their share of incidents,
+`r scales::percent(prop.wea.walocal.all + prop.unk.walocal, 1)`,
+would still be below their share in the population.  And if all of the unknown cases are assumed to be either non-Hispanic Black or Hispanic, that would actually increase the relative risks for these groups. 
 
-So, even though we can't be certain of the exact value of the risk ratio, we can say with some confidence that there *are* racial disparities in the risk of being killed by police, and that these disparities indicate that non-Hispanic Whites are *less* likely than other racial groups to be killed by law enforcement officers. 
+So, even though we can't be certain of the exact value of the risk ratio, we can say with some confidence that there *are* racial disparities in the risk of being killed by police, and that these disparities indicate that non-Hispanic Whites are *less* likely than other racial groups to be killed by law enforcement officers, while non-Hispanic Blacks and Hispanics are *more* likely to be killed. 
 
-*Bottom line:* while the largest single group of persons killed by police is identified as White, the risk ratio for this group, which adjusts for their share of the population, shows they are disproportionately **less** likely to be killed than other groups.
-
-____
-
-#### Perceived vs. self-identified race and implicit bias
-
-The race classification in the FE and WaPo data most likely represent the subject's race as reported by law enforcement.  This may be the officer's perception, or it may be informed by previous interactions and self-reports, we have no way of knowing.  In addition, if our goal was to use these data as evidence for (or against) the effects of systemic implicit bias in the police use of deadly force, we would need to control for other variables that may influence these patterns, like the perceived and actual weapon status of the person killed, the circumstances that precipitated the incidents, the presence or absence of other persons at risk in the incidents, and the detailed population composition of the jurisdiction.
-
-*Bottom line:* We can't use these data to answer the question of the officer's intention, or systemic implicit bias.
+*Bottom line:* while the largest single group of persons killed by police in WA is identified as White, the risk ratio for this group, which adjusts for their share of the population, shows they are disproportionately **less** likely to be killed than those identified as Black or Hispanic.
 
 ___
+
+#### Can we say anything about implicit bias?
+
+Probably not.  To use these data as evidence for (or against) the effects of systemic implicit bias in the police use of deadly force, we would need to know the officer's *perception* of the subject's race, and control for other variables that may influence these patterns, like the perceived and actual weapon status of the person killed, the circumstances that precipitated the incidents, the presence or absence of other persons at risk in the incidents, as well as the demographic composition of the jurisdiction.
+
+*Bottom line:* We can't use these data to answer the question of the officer's subjective intention or implicit bias.  But the data do support the argument that objective per capita disparities in risk by race exist.
+
+____

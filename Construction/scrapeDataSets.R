@@ -20,33 +20,21 @@ mpv_raw <- read_excel(destfile, guess_max = 10000)
 # don't get identified correctly by default.  But we do in the cleaning loop;
 # will generate warnings b/c age has 'Unknown' for missing
 
-# To facilitate scripted cleaning
-# Check periodically to see if they've modified the file structure
-mpv_temp <- mpv_raw %>%  
-  mutate(mpvID = `MPV ID`, 
-         feID = as.numeric(`Fatal Encounters ID`),
-         wapoID = `WaPo ID (If included in WaPo database)`,
-         name = `Victim's name`,
-         date = as.Date(`Date of Incident (month/day/year)`)
-  ) %>%
-  select(-`...53`) %>%
-  select(mpvID:date, `Victim's age`:`Prosecutor Source Link`) #omits KBP, col of 1's
-
 #######################################################################################
 
-# New names (1/1/2022-):  WA ONLY ----
+# WA local data (1/1/2022- with backfills as found):
 ## Preserves the original coverage of FE: 
-## fatalities from all encounters, not just gunshots.  
-## Vehicular pursuits are included.
+## * fatalities from all encounters, not just gunshots.  
+## * Vehicular pursuits are included.
+## Update procedure:
+## * Manually with google searches/IncarcerNation
+## * By script with MPV merge (see MakeData.R file)
 
-## Modify age and date for matching to MPV
+## Variable names in raw file have been updated from FE original to final harmonized
 
-message("Reading in new names for WA from WA-FEWP project")
+message("Reading in local data for WA from WA-FEWP project")
 
-walocal_raw <- readxl::read_xlsx(here::here("Data", "Raw", "wa_newnames.xlsx")) %>%
-  mutate(date = as.Date(`Date of injury resulting in death (month/day/year)`)) %>%
-  rename("age" = "Age") %>%
-  select(-`Date of injury resulting in death (month/day/year)`)
+walocal_raw <- readxl::read_xlsx(here::here("Data", "Raw", "wa_local.xlsx"))
 
 
 #######################################################################################
@@ -54,14 +42,22 @@ walocal_raw <- readxl::read_xlsx(here::here("Data", "Raw", "wa_newnames.xlsx")) 
 # Clean FE data: ----
 ## From the previous repo (fewapo)
 ## This is essentially a frozen dataset now, though errors may be fixed in the future
-## We strip out the 90000+ IDs as these are from our local data collection, and are
+
+message("Reading in clean legacy FE data from WA-FEWP project")
+
+load(here::here("Data", "Clean", "FE_clean.rda"))
+
+  
+## If the archived dataset needs to be fixed:
+## Fix it, read the clean data back into this repo
+## Strip out the 90000+ IDs as these are from our local data collection, and are
 ## handled separately (above)
 
-fe_clean <- read.csv(here::here("Data", "Clean", "FEWaPo", "FE_clean.csv")) %>%
-  filter(feID < 90000) %>%
-  mutate(date = as.Date(date)) %>%
-  select(-X)
-save(fe_clean, file = here::here("Data", "Clean", "FE_clean.rda"))
+# fe_clean <- read.csv(here::here("Data", "Clean", "FEWaPo", "FE_clean.csv")) %>%
+#   filter(feID < 90000) %>%
+#   mutate(date = as.Date(date)) %>%
+#   select(-X)
+# save(fe_clean, file = here::here("Data", "Clean", "FE_clean.rda"))
 
 ######################################################################################
 
@@ -69,10 +65,16 @@ save(fe_clean, file = here::here("Data", "Clean", "FE_clean.rda"))
 ## From the previous repo (fewapo)
 ## This is essentially a frozen dataset now, though errors may be fixed in the future
 
-wapo_clean <- read.csv(here::here("Data", "Clean", "FEWaPo", "WaPo_clean.csv")) %>%
-  mutate(date = as.Date(date)) %>%
-  select(-X)
-save(wapo_clean, file = here::here("Data", "Clean", "wapo_clean.rda"))
+message("Reading in clean legacy WaPo data from WA-FEWP project")
+
+load(here::here("Data", "Clean", "wapo_clean.rda"))
+
+## If the archived dataset needs to be fixed:
+## Fix it, read the clean data back into this repo
+# wapo_clean <- read.csv(here::here("Data", "Clean", "FEWaPo", "WaPo_clean.csv")) %>%
+#   mutate(date = as.Date(date)) %>%
+#   select(-X)
+# save(wapo_clean, file = here::here("Data", "Clean", "wapo_clean.rda"))
 
 ######################################################################################
 
@@ -81,3 +83,12 @@ save(wapo_clean, file = here::here("Data", "Clean", "wapo_clean.rda"))
 message(paste("Loading prebuilt WA legislative district data \n",
               "*Updates only needed for redistricting and elections*"))
 load(here::here("Data", "Clean", "LegInfo_Clean.rda"))
+
+#####################################################################################
+
+# IncarcerNation-FE ID crosswalk info for 2021 ----
+
+message("Loading IncarcerNation-FE ID crosswalk info for 2021")
+
+inIDs2021 <- read.csv(here::here("Data", "Raw", "FE_IN_xwalk_2021.csv"))
+
