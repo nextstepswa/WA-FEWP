@@ -300,6 +300,8 @@ cut.yr <- ifelse(curr.mo > 7, curr.yr+1, curr.yr)
 wa_all_draft <- wa_mpv_fextra_all %>% 
   
   ## Count the number of source IDs
+  # When inSource=1 Incarceration is the only source.  These cases are incorporated into 
+  # the WA local dataset, so have a WA local ID, but this is not an overlap.
   rowwise() %>%
   mutate(source.overlap = if_else(is.na(inSource), 
                                   sum(across(contains("ID"), ~!is.na(.))),
