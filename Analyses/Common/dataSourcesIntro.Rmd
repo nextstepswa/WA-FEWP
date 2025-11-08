@@ -36,6 +36,7 @@ The coverage of each data source can be assessed by the presence of the source I
 tab <- homicides %>%
   group_by(Year = as.character(year)) %>%
   summarize(FE = sum(!is.na(feID)),
+            IN = sum(!is.na(inID)),
             MPV = sum(!is.na(mpvID)),
             WaPo = sum(!is.na(wapoID)),
             WaLocal = sum(!is.na(waID)),
@@ -48,7 +49,7 @@ tab <- homicides %>%
 tab %>%
   kable(caption = "Source Coverage by Year") %>%
   kable_styling(bootstrap_options = c("striped","hover")) %>%
-  add_header_above(header = c(" " = 1, "Data Source" = 4, "De-duplicated yearly totals"=2)) %>%
+  add_header_above(header = c(" " = 1, "Data Source" = 5, "De-duplicated yearly totals"=2)) %>%
   row_spec(dim(tab)[1], bold = T)  %>%
   column_spec(which(names(tab)=="Cases"), bold=T) %>%
   column_spec(which(names(tab)=="Percent"), italic=T) %>%
