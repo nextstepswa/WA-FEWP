@@ -97,9 +97,9 @@ tab <- homicides %>%
       !is.na(mpvID) ~ "MPV",
       !is.na(inSource) ~ "IN",
       !is.na(feID) ~ "FE",
-      !is.na(waID) ~ "WA",
+      !is.na(waID) ~ "WA local",
       TRUE ~ "other"),
-    levels = c("MPV", "FE", "IN", "WA"))
+    levels = c("MPV", "FE", "IN", "WA local"))
   ) %>%
   count(Source, Year = as.character(year)) %>% 
   pivot_wider(names_from=Source, values_from=n) %>% 
