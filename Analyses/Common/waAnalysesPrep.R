@@ -51,6 +51,8 @@ last.age <- ifelse(is.na(last.case.info$age),
 last.agency <- last.case.info$agency
 
 last.cod <- last.case.info$cod
+last.mod <- last.case.info$mod
+last.pursuit <- last.case.info$pursuit.type
 
 
 
