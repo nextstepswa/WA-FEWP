@@ -254,15 +254,47 @@ wa_mpv_fextra_all <- wa_mpv %>%
   arrange(date) %>%
   select(-c(source1, source2))
 
+
+# Legacy pursuits for 2015 - 11/2025 ----
+
+## Cleaned legacy pursuit file should exist
+## If not, or if there are updates, can run the script to create
+## See the construction file for information on the process
+## Merging later relies on all of the ID vars
+
+# Check if need to rebuild, otherwise load existing file
+
+if(file.exists(here::here("Data", "Clean", "Pursuits",
+                          "legacy_pursuits.rda"))){
+
+  lastmod.pursuit.rda <- file.info(here::here("Data", "Clean", "Pursuits", 
+                                               "legacy_pursuits.rda"))$mtime
+  lastmod.pursuit.makefile <- file.info(here::here("Construction", 
+                                                   "legacy_pursuits.R"))$mtime
+  lastmod.MPV.pursuits <- file.info(here::here("Data", "Clean", "Pursuits", 
+                                               "MPV.coded.pursuits.xlsx"))$mtime
+  lastmod.WA.pursuits <- file.info(here::here("Data", "Clean", "Pursuits", 
+                                               "WAlocal.coded.pursuits.xlsx"))$mtime
+  lastmod.FE.pursuits <- file.info(here::here("Data", "Clean", "Pursuits", 
+                                               "FE.coded.pursuits.xlsx"))$mtime
+  
+  lastmod.makefiles <- max(lastmod.pursuit.makefile, lastmod.MPV.pursuits,
+                           lastmod.WA.pursuits, lastmod.FE.pursuits)
+  
+  if(lastmod.makefiles > lastmod.pursuit.rda) {
+    message("Rebuilding pursuit dataset")
+    source(here::here("Construction", "makeWApursuits.R"))
+    
+  } else {
+    message("Loading existing legacy pursuit dataset")
+    load(here::here("Data", "Clean", "Pursuits", "legacy_pursuits.rda"))
+  }
+} else {
+  message("Rebuilding pursuit dataset")
+  source(here::here("Construction", "legacy_pursuits.R"))
+}
+
 # Final variable prep for 2015+ WA data ----
-
-# Legacy pursuit coding for 2015+ ----
-
-## See the external file for information on the process
-## Matching back on relies on feID, so merge the ID fields from WA and FE
-
-source(here::here("Construction", "legacy_pursuits.R"))
-
 
 ## Consensus variable construction: ----
 

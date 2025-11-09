@@ -9,11 +9,11 @@ load(here::here("Data", "Clean", "ID_xwalk_from_2022.rda"))
 inIDs2021 <- read.csv(here::here("Data", "Raw", "FE_IN_xwalk_2021.csv"))
 
 # Legacy coded pursuit data
-mpv_cp <- readxl::read_xlsx(here::here("Data", "Pursuits", "MPV.coded.pursuits.xlsx")) %>%
+mpv_cp <- readxl::read_xlsx(here::here("Data","Clean", "Pursuits", "MPV.coded.pursuits.xlsx")) %>%
   select(mpvID:pursuit.incinum, url_addl, notes)
-fe_cp <- readxl::read_xlsx(here::here("Data", "Pursuits", "FE.coded.pursuits.xlsx")) %>%
+fe_cp <- readxl::read_xlsx(here::here("Data", "Clean", "Pursuits", "FE.coded.pursuits.xlsx")) %>%
   select(feID:pursuit.incinum, url_addl, notes)
-walocal_cp <- readxl::read_xlsx(here::here("Data", "Pursuits", "WAlocal.coded.pursuits.xlsx")) %>%
+walocal_cp <- readxl::read_xlsx(here::here("Data", "Clean", "Pursuits", "WAlocal.coded.pursuits.xlsx")) %>%
   select(waID:pursuit.incinum, url_addl, notes) %>%
   left_join(id_xwalk_from_2022) %>%
   select(contains("ID"), name:notes)
@@ -97,10 +97,13 @@ legacy.pursuits <- bind_rows(pursuits.pre2022, pursuits.post2021) %>%
 
 legacy.pursuits.2015 <- legacy.pursuits %>% filter(lubridate::year(date) > 2014)
 
-# tests
-legacy.pursuits %>% count(feID) %>% filter(n==2)
-legacy.pursuits %>% count(wapoID) %>% filter(n==2)
-legacy.pursuits %>% count(mpvID) %>% filter(n==2)
-legacy.pursuits %>% count(waID) %>% filter(n==2)
-legacy.pursuits %>% count(inID) %>% filter(n==2)
+save(list = c("legacy.pursuits", "legacy.pursuits.2015"),
+     file = here::here("Data", "Clean", "Pursuits", "legacy_pursuits.rda"))
+
+# # tests
+# legacy.pursuits %>% count(feID) %>% filter(n==2)
+# legacy.pursuits %>% count(wapoID) %>% filter(n==2)
+# legacy.pursuits %>% count(mpvID) %>% filter(n==2)
+# legacy.pursuits %>% count(waID) %>% filter(n==2)
+# legacy.pursuits %>% count(inID) %>% filter(n==2)
 
