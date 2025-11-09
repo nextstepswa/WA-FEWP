@@ -20,6 +20,12 @@ Data/Clean/*
 !Data/Clean/wapo_clean.rda
 !Data/Clean/LegInfo_Clean.rda
 
+!Data/Clean/Pursuits
+Data/Clean/Pursuits/*
+
+!Data/Clean/Pursuits/*.xlsx
+!Data/Clean/PUrsuits/*.rda
+
 # Key data construction scripts
 !/Construction/
 Construction/*
@@ -40,3 +46,4 @@ Analyses/*
 !Analyses/WAsince2015.Rmd
 !Analyses/Common/
 
+.Rproj.user
