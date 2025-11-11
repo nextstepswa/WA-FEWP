@@ -510,6 +510,15 @@ save(list = c("wa_clean_2015", "fe_clean_2015", "mpv_clean_2015", "walocal_clean
               "last_complete_yr", "last_update_is_eoy"),
      file = here("Data", "Clean", "WA_2015.rda"))
 
+# Save a copy of the final dataset in the Pursuits GH Data folder, if it exists
+# Allows the Pursuits GH repo to be self-contained
+
+if(dir.exists("~/GitHub/Pursuits/Data/Clean/")) {
+  
+save(list = c("wa_clean_2015", "scrape_date"),
+     file = "~/GitHub/Pursuits/Data/Clean/WA_2015.rda")
+
+} 
 
 # Print summary of run
 
