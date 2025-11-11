@@ -85,7 +85,7 @@ source(here("Construction", "fixes_mpv.R"))
 source(here("Construction", "harmonize_mpv.R"))
 
 
-## WA newname cleaning ----
+## WA local cleaning ----
 
 ## File format has been updated
 ## Includes cases from IncarcerNation with inID and inSource tags
