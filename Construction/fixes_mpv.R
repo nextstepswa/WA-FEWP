@@ -29,6 +29,7 @@ mpv_temp$name[mpv_temp$mpvID == 347] <- "Todd Christopher Jones"
 mpv_temp$name[mpv_temp$mpvID == 1075] <- "Anthony Darnell King"
 mpv_temp$name[mpv_temp$mpvID == 277] <- "Stacey Stout"
 mpv_temp$name[mpv_temp$mpvID == 14428] <- "Daniel Judson Jolliffe" #suicide, reported to MPV
+mpv_temp$name[mpv_temp$mpvID == 14890] <- "Jack Paleli"
 
 ## Dates ----
 mpv_temp$date[mpv_temp$mpvID == 8397] <- as.Date("2020-08-26")
@@ -42,7 +43,7 @@ mpv_temp$`Victim's gender`[mpv_temp$mpvID %in%
                                10733, 10130, 
                                10280)] <- "Male"
 
-mpv_temp$`Victim's gender`[mpv_temp$mpvID == 5092] <- "Nonbinary"
+mpv_temp$`Victim's gender`[mpv_temp$mpvID == 5092] <- "Non-binary"
 
 ## Age ----
 mpv_temp$`Victim's age`[mpv_temp$mpvID==10031] <- "39"
@@ -57,6 +58,9 @@ mpv_temp$`Victim's age`[mpv_temp$mpvID==12993] <- "38"
 mpv_temp$`Victim's age`[mpv_temp$mpvID==13050] <- "31" # every article
 mpv_temp$`Victim's age`[mpv_temp$mpvID==13439] <- "57"
 mpv_temp$`Victim's age`[mpv_temp$mpvID==13985] <- "30" # obit DOB
+mpv_temp$`Victim's age`[mpv_temp$mpvID==14890] <- "46" # coroner info
+mpv_temp$`Victim's age`[mpv_temp$mpvID==14993] <- "39" # OII
+mpv_temp$`Victim's age`[mpv_temp$mpvID==15087] <- "32" # Obit
 
 
 ## City ----

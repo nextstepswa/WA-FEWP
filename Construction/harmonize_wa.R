@@ -69,7 +69,8 @@ walocal_draft <- walocal_raw %>%
          day = day(date),
          year = year(date)
   ) %>%
-  mutate(state = state_fullname_fn(st),
+  mutate(st = "WA",
+         state = state_fullname_fn(st),
          state.num = match(st, st.abb51)
   ) %>%
   

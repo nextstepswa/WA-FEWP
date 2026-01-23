@@ -1090,18 +1090,23 @@ mpv_tab <- mpv_clean_2015 %>%
 # but can be scraped with "ftp://ftp2..."
 # May still need to download in the future as so much govt data access is uncertain now
 
+# Pop estimates for 2025 are not yet available (as of 1/23/2026) so we estimate 2025 based on average growth rate
+# from 2020-2024
+
 pop2020 <- read_csv("ftp://ftp2.census.gov/programs-surveys/popest/datasets/2010-2020/state/totals/nst-est2020-alldata.csv") %>%
   filter(SUMLEV != "020") %>%
   select(NAME, contains("POPESTIMATE"))
   
-pop2024 <- read_csv("ftp://ftp2.census.gov/programs-surveys/popest/datasets/2020-2024/state/totals/NST-EST2024-ALLDATA.csv") %>%
+pop2025 <- read_csv("ftp://ftp2.census.gov/programs-surveys/popest/datasets/2020-2024/state/totals/NST-EST2024-ALLDATA.csv") %>%
   filter(SUMLEV %in% c("010", "040")) %>%
-  select(NAME, contains("POPESTIMATE"))
+  select(NAME, contains("POPESTIMATE")) %>%
+  mutate(POPESTIMATE2025 = POPESTIMATE2024 + POPESTIMATE2024 * (POPESTIMATE2024-POPESTIMATE2020)/(POPESTIMATE2020*4))
 
-pop <- left_join(pop2020, pop2024, by = "NAME") %>%
+
+pop <- left_join(pop2020, pop2025, by = "NAME") %>%
   rowwise() %>%
   mutate(POPESTIMATE2020 = mean(c_across(contains("2020")))) %>%
-  select(NAME, POPESTIMATE2015:POPESTIMATE2019, POPESTIMATE2020, POPESTIMATE2021:POPESTIMATE2024) %>%
+  select(NAME, POPESTIMATE2015:POPESTIMATE2019, POPESTIMATE2020, POPESTIMATE2021:POPESTIMATE2025) %>%
   filter(NAME != "Puerto Rico") %>%
   rename("state" = "NAME")
 
@@ -1143,6 +1148,8 @@ state.rates <- states.all %>%
 ### Population adjusted rate
 
 The number of people killed is represented here as a population-adjusted rate per million residents, which makes it possible to compare states with different sized populations.  The raw numbers are given on the next tab.
+
+Keep in mind that this uses the MPV data, so it excludes most people killed in police pursuits.
 
 ```{r wavsus-rates, warning=F}
 
@@ -1195,11 +1202,11 @@ Here we report the MPV data by state for the most recent complete year: `r last_
 ```{r strank-number, warning=F, fig.height=7}
 
 p <- ggplot(data = states.all %>% filter(!grepl("United|Other", state)),
-            aes(x=killed2024, y=reorder(state, killed2024), 
-                fill = killed2024,
+            aes(x=killed2025, y=reorder(state, killed2025), 
+                fill = killed2025,
                 color = factor(ifelse(state=="Washington", 1, 0)),
                 text=paste(state, 
-                           "total:", killed2024))) +
+                           "total:", killed2025))) +
               
   geom_col() +
     
@@ -1208,7 +1215,7 @@ p <- ggplot(data = states.all %>% filter(!grepl("United|Other", state)),
     low = "blue", 
     mid = "white", 
     high = "red", 
-    midpoint = median(states.all$killed2024)) +
+    midpoint = median(states.all$killed2025)) +
   #scale_x_continuous(labels = scales::percent) +
   
   theme(axis.text.y=element_text(size=rel(.7)), legend.position = "none") +
@@ -1232,11 +1239,11 @@ ggplotly(p, tooltip = "text")
 ```{r strank-rate, warning=F, fig.height=7}
 
 p <- ggplot(data = states.all %>% filter(!grepl("United|Other", state)),
-            aes(x=ratekilled2024, y=reorder(state, ratekilled2024), 
-                fill = ratekilled2024,
+            aes(x=ratekilled2025, y=reorder(state, ratekilled2025), 
+                fill = ratekilled2025,
                 color = factor(ifelse(state=="Washington", 1, 0)),
                 text=paste(state, 
-                           "total:", round(ratekilled2024, 1)))
+                           "total:", round(ratekilled2025, 1)))
             ) +
               
   geom_col() +
@@ -1246,7 +1253,7 @@ p <- ggplot(data = states.all %>% filter(!grepl("United|Other", state)),
     low = "blue", 
     mid = "white", 
     high = "red", 
-    midpoint = median(states.all$ratekilled2024)) +
+    midpoint = median(states.all$ratekilled2025)) +
   #scale_x_continuous(labels = scales::percent) +
   
   theme(axis.text.y=element_text(size=rel(.7)), legend.position = "none") +
@@ -1271,15 +1278,15 @@ ggplotly(p, tooltip = "text")
 ```{r strank-change, warning=F, fig.height=7}
 df <- states.all %>% 
   filter(!grepl("United|Other", state)) %>%
-  select(state, killed2023:killed2024) %>%
-  mutate(pct.chg = killed2024/killed2023 -1)
+  select(state, killed2023:killed2025) %>%
+  mutate(pct.chg = killed2025/killed2023 -1)
 
 p <- ggplot(data = df,
             aes(x=pct.chg, y=reorder(state, pct.chg), 
                 fill = pct.chg,
                 color = factor(ifelse(state=="Washington", 1, 0)),
                 text=paste0(state, 
-                           paste("<br>", "number killed in ", last_complete_yr, ": ", killed2024),
+                           paste("<br>", "number killed in ", last_complete_yr, ": ", killed2025),
                            paste("<br>", "change from last year: ", scales::percent(pct.chg, acc = 1))))
             ) +
               
