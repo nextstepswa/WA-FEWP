@@ -27,9 +27,11 @@ mpv_temp$Longitude[mpv_temp$mpvID == 11738] <- -73.7983222
 ## Names ----
 mpv_temp$name[mpv_temp$mpvID == 347] <- "Todd Christopher Jones"
 mpv_temp$name[mpv_temp$mpvID == 1075] <- "Anthony Darnell King"
-mpv_temp$name[mpv_temp$mpvID == 277] <- "Stacey Stout"
+mpv_temp$name[mpv_temp$mpvID == 277] <- "Stacey Stout" # not Stacy
 mpv_temp$name[mpv_temp$mpvID == 14428] <- "Daniel Judson Jolliffe" #suicide, reported to MPV
-mpv_temp$name[mpv_temp$mpvID == 14890] <- "Jack Paleli"
+#mpv_temp$name[mpv_temp$mpvID == 14890] <- "Jack Paleli"
+mpv_temp$name[mpv_temp$mpvID == 15187] <- "Alrico Ray Coleman"
+mpv_temp$name[mpv_temp$mpvID == 15213] <- "Branden Bouathet Chindavong"
 
 ## Dates ----
 mpv_temp$date[mpv_temp$mpvID == 8397] <- as.Date("2020-08-26")
@@ -61,7 +63,10 @@ mpv_temp$`Victim's age`[mpv_temp$mpvID==13985] <- "30" # obit DOB
 mpv_temp$`Victim's age`[mpv_temp$mpvID==14890] <- "46" # coroner info
 mpv_temp$`Victim's age`[mpv_temp$mpvID==14993] <- "39" # OII
 mpv_temp$`Victim's age`[mpv_temp$mpvID==15087] <- "32" # Obit
-
+mpv_temp$`Victim's age`[mpv_temp$mpvID==15032] <- "29" # Every Article
+mpv_temp$`Victim's age`[mpv_temp$mpvID==15172] <- "30" # Article
+mpv_temp$`Victim's age`[mpv_temp$mpvID == 15187] <- "34" # "Alrico Ray Coleman"
+mpv_temp$`Victim's age`[mpv_temp$mpvID == 15213] <- "37" # "Branden Bouathet Chindavong"
 
 ## City ----
 mpv_temp$City[mpv_temp$mpvID==8028] <- "Seattle"

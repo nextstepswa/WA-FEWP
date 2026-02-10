@@ -53,12 +53,13 @@ walocal_draft <- walocal_raw %>%
     race = fct_relevel(race, "Unknown", after = Inf)
   ) %>%
   
+  # No cases of unknown gender for WA
   mutate(gender = str_to_sentence(gender),
          gender = case_when(
            is.na(gender) | gender == "" ~ "Unknown",
            grepl("Trans", gender) ~ "Other",
            TRUE ~ gender),
-         gender = fct_relevel(`gender`, "Unknown", after = Inf)
+         #gender = fct_relevel(`gender`, "Unknown", after = Inf)
   ) %>%
   
   # age needs missing value, since age is used to merge
@@ -107,14 +108,14 @@ walocal_draft <- walocal_raw %>%
   ) %>%
   
   # MPV is not coding types of force used separately from COD,
-  # and it codes multiple types of force in this field, so we follow that
-  # But if gunshot is in the field, we code that as COD
+  # and it codes multiple types of force in this field, but we have no examples of that in WA since 2022
+  # If gunshot is in the field, we code that as COD
   mutate(cod = case_when(
            grepl("Gunshot", cod) ~ "Gunshot",
            grepl(",", cod) ~ "Multiple types of force",
            TRUE ~ cod),
          cod = factor(cod),
-         cod = fct_relevel(cod, "Multiple types of force", after = Inf)
+         #cod = fct_relevel(cod, "Multiple types of force", after = Inf)
   ) %>%
   mutate(armed = case_when(
            armed == "Armed" ~ "Alleged Armed",

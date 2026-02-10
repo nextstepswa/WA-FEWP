@@ -515,7 +515,11 @@ save(list = c("wa_clean_2015", "fe_clean_2015", "mpv_clean_2015", "walocal_clean
 
 if(dir.exists("~/GitHub/Pursuits/Data/Clean/")) {
   
-save(list = c("wa_clean_2015", "scrape_date"),
+save(list = c("wa_clean_2015", "scrape_date",
+              "selection", "scrape_date", 
+              "last_date_mpv", "last_date_wa", "last_date_in",
+              "last_data_update", "last_complete_mo", 
+              "last_complete_yr", "last_update_is_eoy"),
      file = "~/GitHub/Pursuits/Data/Clean/WA_2015.rda")
 
 } 
