@@ -162,7 +162,7 @@ if(any(dupe.mpv>1)){
 ### 3. Inconsistencies in merged info ----
 
 ## Fuzzy string matching allows for some errors in key variables
-## Fix by inspection, in wa_newnames, or
+## Fix by inspection, in wa_local, or
 ## using the fixes_mpv.R (and report)
 
 attribute.mismatch <- merge_draft %>%
