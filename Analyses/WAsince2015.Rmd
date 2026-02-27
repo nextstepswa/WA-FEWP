@@ -73,7 +73,7 @@ This report tracks the trends in people killed by police in WA since `r params$f
 * __Last reported case: 
 `r last.name`, `r last.age`, on `r format(last.date, format="%B %d, %Y")` by `r last.agency`__
 
-    `r ifelse(last.name == "(Name not released)", "This", last.name)` is the `r paste0(tot.this.yr, num.suffix)` person killed by police in `r tot.yr.is`.  The cause of death is reported as `r str_to_lower(last.cod)` and the manner of death appears to be `r str_to_lower(last.mod)`.  `r ifelse(is.na(last.pursuit), "", "This incident involved a police vehicular pursuit.")`   `r last.url`
+    `r ifelse(last.name == "(Name not released)", "This", last.name)` is the `r paste0(tot.this.yr, num.suffix)` person killed by police in `r tot.yr.is`.  The cause of death is reported as `r str_to_lower(last.cod)` and the manner of death appears to be `r str_to_lower(last.mod)`.  `r ifelse(grepl("Not|accident", last.pursuit), "", "This incident involved a police vehicular pursuit.")`  More information can be found in this article: `r last.url`
 
 Before the 2021 legislative reforms, one out of every 6 persons killed in Washington state was killed during an encounter with law enforcement.  (On average,
 about 250 homicide deaths were recorded each year in WA State from 2015-2020, with about 40 killed during encounters with police.  You can view and download the state's official death data
