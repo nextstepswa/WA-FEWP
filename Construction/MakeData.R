@@ -45,13 +45,12 @@ scrape_data_fn <- function(dataset_name, url, save_file) {
 }
 
 # %1$s is replaced with the first replace argument you pass into sprintf. %2$s uses the seconds etc.
+# result is, e.g. "<a href='http://masonwebtv.com/archives/14169'>http://masonwebtv.com/archives/14169</a>"
 make_url_fn <- function(x) {
   #paste(sprintf("<a href='%1$s'>%1$s</a>", x))
   paste0("<a href='", x, "'>", x, "</a>")
 }
 
-
-"<a href='http://masonwebtv.com/archives/14169'>http://masonwebtv.com/archives/14169</a>"
 
 st.abb51 <- c(sort(state.abb), "DC")
 
@@ -532,5 +531,3 @@ message(update.message.mpv)
 message(last.name.message)
 #message(wtsc.update.message)
 
-# Quick descriptives
-#Hmisc::describe(merge4)
