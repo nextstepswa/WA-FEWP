@@ -43,6 +43,7 @@ library(leaflet)
 library(lubridate)
 library(icons)
 library(htmlwidgets)
+library(janitor)
 ```
 
 
@@ -53,10 +54,6 @@ load(file = here("Data", "Clean", params$rdafile))
 # Data prep (common)
 source(here("Analyses", "Common", "waAnalysesPrep.R"))
 
-# for geocoded LDs
-with(homicides, write.csv(cbind(feID,latitude,longitude),
-                          here("Data", "Clean",
-                               "geocodes2015.csv")))
 
 ```
 
@@ -92,6 +89,12 @@ ___
 The TOC on the left can be used to navigate through the sections of the report.  There are interactive maps with links to media reports, breakdowns by demographics, geography, cause of death, agency and time to provide some insight into the patterns and trends, and a list of all persons killed to acknowledge the lives lost and provide a starting point for those seeking more information on specific cases.  Information on the data sources and limitations can be found in the [Data sources](#data-sources) section.  The data and scripts used for this report are available on GitHub, access details can be found in the [Public Access](#public-access) section.
 
 ____
+
+## Online information availability
+
+The dataset includes a single url to a news article that is available online.  It provides definitive evidence of a fatality, but the information contained in the article should be treated as a place to start research, not as the definitive description of the event.  There are often multiple news articles available online, and they may report the conflicting details of the event, as well as conflicting perspectives on the justifiability of the use of lethal force.  
+
+Links to these articles are included in this report in the [Interactive Map](#interactive-map) and [Say their names](#say-their-names) sections. When clicked, they will take you to the article.
 
 
 # Interactive Map
@@ -134,54 +137,55 @@ See the "Discussion" tab for more information on how race is ascertained and why
 ```{r racetab}
 
 tab <- homicides %>%
-  mutate(race = case_match(race,
-    "API" ~ "Asian/Pacific Islander",
+  mutate(Race = recode_values(as.character(race),
+    "AIAN" ~ "American Indian/Alaska Native",
+    "ASIA" ~ "Asian",
     "BAA" ~ "Black/African American",
     "HL" ~ "Hispanic/Latinx",
-    "NAA" ~ "Native American/Indigenous",
+    "MENA" ~ "Middle East/North African",
+    "NHPI" ~ "Native Hawaiian/Pacific Islander",
     "WEA" ~ "White/European American",
-    .default = race),
-    race = fct_relevel(race,  "Unknown", after = Inf)
-  ) %>%
-group_by(race) %>%
+    default = race),
+    Race =  forcats::fct_infreq(Race),
+    Race = fct_relevel(Race, "Unknown", 
+                        after = Inf)
+    ) %>%
+  group_by(Race) %>%
   summarize(Number = n(),
             Percent = round(100*Number/nrow(homicides), 1)
   ) %>%
-  bind_rows(data.frame(race="Total", 
-                       Number = sum(.$Number), 
-                       Percent = sum(.$Percent))) %>%
-  rename(Race = race) 
+  adorn_totals("row")
 
 tab %>%
   kable(caption = "Breakdown by Race") %>%
   kable_styling(bootstrap_options = c("striped","hover")) %>%
-  row_spec(row=dim(tab)[1], bold = T) %>%
+  row_spec(which(tab$Race == "Total"), bold = T) %>%
+  row_spec(which(tab$Race == "Unknown"), italic = T) %>%
   add_footnote(label = "Percents may not sum to 100 due to rounding",
                notation = "symbol")
 ```
 
 ### Plots
 ```{r raceplots, message=F}  
-homicides %>%
-  mutate(race = case_match(race,
-    "API" ~ "Asian/Pacific Islander",
-    "BAA" ~ "Black/African American",
-    "HL" ~ "Hispanic/Latinx",
-    "NAA" ~ "Native American/Indigenous",
-    "WEA" ~ "White/European American",
-    .default = race),
-    race = fct_relevel(race,  "Unknown", after = Inf)
-  ) %>%
-  count(race) %>%
-  mutate(perc = n / nrow(homicides)) %>%
+
+# Detailed race
+
+tab <- homicides %>%
+  mutate(Race =  forcats::fct_infreq(race),
+         Race = fct_relevel(Race, "Unknown", 
+                   after = Inf)
+         ) %>%
+  count(Race) %>%
+  mutate(Percent = n / nrow(homicides))# %>%
   
-  ggplot(aes(x=race, 
-             y = perc, 
+tab %>% #filter(Race != "Total") %>%
+  ggplot(aes(x=Race, 
+             y = Percent, 
              label = n)) +
   geom_bar(stat="identity", fill="blue", alpha=.5) +
-  geom_text(aes(y = perc), size = 3, nudge_y = .025) +
+  geom_text(aes(y = Percent), size = 3, nudge_y = .025) +
   
-  theme(axis.text.x = element_text(size=5.5)) +
+  #theme(axis.text.x = element_text(size=5.5)) +
   
   scale_y_continuous(labels = scales::percent_format(acc=1)) +
   
@@ -192,10 +196,13 @@ homicides %>%
          xlab("Reported Race") +
          ylab("Percent of Total")
 
+# White vs. BIPOC
+
 homicides %>%
-  mutate(raceb = case_when(race == "WEA" ~ "White",
-                           race == "Unknown" ~ "Unknown",
-                           TRUE ~ "BIPOC"),
+  mutate(raceb = recode_values(race,
+                               "WEA" ~ "White",
+                               "Unknown" ~ "Unknown",
+                               default =  "BIPOC"),
          raceb = fct_relevel(raceb, "Unknown", 
                              after = Inf)) %>%
   count(raceb) %>%
@@ -235,11 +242,16 @@ homicides %>%
       case_when(
         cod == "Gunshot" ~ "shot", 
         grepl("Vehicle|Motorcycle", cod) ~ "vehicle-related",
-        TRUE ~ "other"),
-      levels = c("shot", "vehicle-related", "other"))
+        .default =  "other"),
+      levels = c("shot", "vehicle-related", "other")),
+    cod_3 =  forcats::fct_infreq(cod_3),
+    cod_3 = fct_relevel(cod_3, "Unknown", 
+                        after = Inf)
   ) %>%
+  
   count(cod_3) %>%
   mutate(perc = n / nrow(homicides)) %>%
+  
   ggplot(aes(x=cod_3, 
              y = perc, 
              label = n)) +
@@ -249,27 +261,32 @@ homicides %>%
        caption = paste0("WA State since ", 
                         params$from, 
                         "; y-axis=pct, bar label=count")) +
+  
+  scale_y_continuous(labels = scales::percent_format(acc=1)) +
+  
   xlab("Cause of Death") +
   ylab("Percent of Total")
 ```
 
-### Table
+### Table (Detailed COD)
 ```{r codtab}
 tab <- homicides %>%
+  mutate(cod =  forcats::fct_infreq(cod),
+         cod = fct_relevel(cod, "Unknown", 
+                             after = Inf)
+  )%>%
   group_by(cod) %>%
   summarize(Number = n(),
             Percent = round(100*Number/nrow(homicides), 1)
   ) %>%
-  arrange(desc(Number)) %>%
-  bind_rows(data.frame(cod ="Total", 
-                       Number = sum(.$Number), 
-                       Percent = sum(.$Percent))) 
+  adorn_totals("row")
+
 
 tab %>%
   kable(caption = "Breakdown by Cause of Death",
         col.names = c("Cause of Death", "Number", "Percent")) %>%
   kable_styling(bootstrap_options = c("striped","hover")) %>%
-  row_spec(row=dim(tab)[1], bold = T)  %>%
+  row_spec(which(tab$cod=="Total"), bold = T)  %>%
   add_footnote(label = "Percents may not sum to 100 due to rounding",
                notation = "symbol")
 ```
@@ -286,6 +303,7 @@ The source of this information is typically the initial press release or report 
 homicides %>%
   count(weapon) %>%
   mutate(perc = n / nrow(homicides)) %>%
+  
   ggplot(aes(reorder(weapon, perc),
              y = perc, 
              label = n)) +
@@ -295,6 +313,9 @@ homicides %>%
        caption = paste0("WA State since ", 
                         params$from, 
                         "; y-axis=pct, bar label=count")) +
+  
+  scale_y_continuous(labels = scales::percent_format(acc=1)) +
+  
   xlab("Alleged Weapon Used by Victim") +
   ylab("Percent of Total")
 ```
@@ -304,26 +325,27 @@ homicides %>%
 
 This information comes from the MPV dataset, *so is not available for the data from other sources.*  These additional cases are listed as "Unknown" below.
 
-```{r bodycam}
-homicides %>%
+```{r footage}
+tab <- homicides %>%
   mutate(
     video = case_when(
-      grepl("Body|Surv", bodycam) ~ "Yes",
-      bodycam=="None" ~ "No",
-      TRUE ~ "Unknown"),
+      is.na(footage) ~ "Unknown",
+      .default =  footage),
+    video = forcats::fct_infreq(video),
     video = fct_relevel(video, "Unknown", 
                         after = Inf)) %>%
   group_by(video) %>%
   summarize(Number = n(),
             Percent = round(100*Number/nrow(homicides), 1)
   ) %>%
-  bind_rows(data.frame(video ="Total", 
-                       Number = sum(.$Number), 
-                       Percent = sum(.$Percent))) %>%
+  adorn_totals("row")
+
+tab %>%
   kable(caption = "Breakdown by video availability",
         col.names = c("Video", "Number", "Percent")) %>%
   kable_styling(bootstrap_options = c("striped","hover")) %>%
-  row_spec(row=4, bold = T)  %>%
+  row_spec(which(tab$video=="Unknown"), italic = T)  %>%
+  row_spec(which(tab$video=="Total"), bold = T)  %>%
   add_footnote(label = "Percents may not sum to 100 due to rounding",
                notation = "symbol")
 ```
@@ -332,24 +354,84 @@ homicides %>%
 
 Washington State has 39 Counties.  Since 2015 there have been people killed by police in `r length(unique(homicides$county))` of them.
 
-### Plot
+### Plot (top 5)
 
-```{r countyplot}
-homicides %>%
+```{r countyplot5}
+tab <- homicides %>%
   group_by(county) %>%
   summarize(n = n(),
             perc = n / nrow(homicides)) %>%
+  arrange(desc(n))
+
+tab[1:5,] %>%
+  
   ggplot(aes(reorder(county, perc),
              y = perc, 
              label = n)) +
-  geom_text(aes(y = perc), size = 3, nudge_y = .005) +
+  geom_text(aes(y = perc), size = 3, nudge_y = .01) +
   geom_bar(stat="identity", fill="blue", alpha=.5) +
   
-  labs(title = "County",
+  labs(title = "Top 5 Counties for People Killed by Police",
        caption = paste0("WA State since ", 
                         params$from, 
                         "; x-axis=pct, bar label=count")) +
-  xlab("County where fatal encounter happened") +
+  xlab("County") +
+  ylab("Percent of Total") +
+  
+  scale_y_continuous(labels = scales::percent_format(acc=1)) +
+  
+  coord_flip()
+
+```
+
+### Plot (top 5 after 2018)
+
+```{r countyplot5_after_2018}
+tab <- homicides %>% filter(year > 2018) %>%
+  
+  group_by(county) %>%
+  summarize(n = n(),
+            perc = n / nrow(homicides)) %>%
+  arrange(desc(n))
+
+tab[1:5,] %>%
+  
+  ggplot(aes(reorder(county, perc),
+             y = perc, 
+             label = n)) +
+  geom_text(aes(y = perc), size = 3, nudge_y = .01) +
+  geom_bar(stat="identity", fill="blue", alpha=.5) +
+  
+  labs(title = "Top 5 Counties for People Killed by Police",
+       caption = paste0("WA State since ", 
+                        params$from, 
+                        "; x-axis=pct, bar label=count")) +
+  xlab("County") +
+  ylab("Percent of Total") +
+  
+  scale_y_continuous(labels = scales::percent_format(acc=1)) +
+  
+  coord_flip()
+
+```
+
+
+### Plot (all)
+
+```{r countyplot}
+tab %>%
+  
+  ggplot(aes(reorder(county, perc),
+             y = perc, 
+             label = reorder(n, perc))) +
+  geom_text(aes(y = perc), size = 3, nudge_y = .01) +
+  geom_bar(stat="identity", fill="blue", alpha=.5) +
+  
+  labs(title = "County of incident",
+       caption = paste0("WA State since ", 
+                        params$from, 
+                        "; x-axis=pct, bar label=count")) +
+  xlab("County") +
   ylab("Percent of Total") +
   
   scale_y_continuous(labels = scales::percent_format(acc=1)) +
@@ -362,27 +444,31 @@ homicides %>%
 
 ```{r countytab}
 
-homicides %>%
-  group_by(county) %>%
-  summarize(Number = n(),
-            Percent = round(100*Number/nrow(homicides), 1)
-  ) %>%
+tab %>%
+  mutate(Percent = round(100*perc, 1)) %>%
+  select(-perc) %>%
   DT::datatable(rownames = F,
-                caption = "Breakdown by County")
+                caption = "Fatalities since 2015 by county")
 
 ```
 
 ## Agency involved  {.tabset}
 
+There are more than 100 agencies that have been responsible for at least one fatality.  Including all agencies on a single plot would make it impossible to read the text. So we plot 2 subsets:
 
-* The plot only shows agencies with 3 or more fatalities since 2015.  Since there are more than 100 agencies with fatalities, the plot text would become impossible to read if all of them were included.  Incidents with more than one agency involved are grouped together and labeled "Multiple Agencies".
+* The first plot shows the top 10 agencies -- the 10 agencies with the largest number of fatalities. Incidents with more than one agency involved are grouped together and labeled "Multiple Agencies".
+
+* The second plot only shows agencies with 2 or more fatalities since 2015. 
+
+The complete list of agencies is presented in the table.
 
 * The table includes all agencies, all fatalities, and identifies the full list of agencies when there is more than one involved in the incident(s).
 
-### Plot
 
-```{r agencyplot}
-homicides %>%
+### Plot (top 10)
+
+```{r agencyplot10}
+tab <- homicides %>%
   mutate(agencyR = ifelse(grepl(",", agency), "Multiple agencies", agency),
          agencyR = sub("Police Department", "PD", agencyR),
          agencyR = sub("Sheriff's Office", "SO", agencyR),         
@@ -390,7 +476,78 @@ homicides %>%
   group_by(agencyR) %>%
   summarize(n = n(),
             perc = n / nrow(homicides)) %>%
-  filter(n > 2) %>%
+  arrange(desc(n)) 
+  
+
+tab[1:10,] %>%
+  
+  ggplot(aes(reorder(agencyR, perc),
+             y = perc, 
+             label = n)) +
+  geom_text(aes(y = perc), size = 2, nudge_y = .003) +
+  geom_bar(stat="identity", fill="blue", alpha=.5) +
+  
+  labs(title = "Top 10 Agencies for fatalities",
+       caption = paste0("WA State since ", 
+                        params$from, 
+                        "; x-axis=pct of all incidents, bar label=count")) +
+  xlab("") +
+  ylab("Percent of Total") +
+  
+  # this works with the flipped axis id
+  theme(axis.text.y = element_text(size=8)) +
+  
+  scale_y_continuous(labels = scales::percent_format(acc=1)) +
+  
+  coord_flip()
+
+```
+
+### Plot (top 10 after 2018)
+
+```{r agencyplot10_post_2018}
+tab <- homicides %>% filter (year > 2018) %>%
+  
+  mutate(agencyR = ifelse(grepl(",", agency), "Multiple agencies", agency),
+         agencyR = sub("Police Department", "PD", agencyR),
+         agencyR = sub("Sheriff's Office", "SO", agencyR),         
+         ) %>%
+  group_by(agencyR) %>%
+  summarize(n = n(),
+            perc = n / nrow(homicides)) %>%
+  arrange(desc(n)) 
+  
+
+tab[1:10,] %>%
+  
+  ggplot(aes(reorder(agencyR, perc),
+             y = perc, 
+             label = n)) +
+  geom_text(aes(y = perc), size = 2, nudge_y = .003) +
+  geom_bar(stat="identity", fill="blue", alpha=.5) +
+  
+  labs(title = "Top 10 Agencies for fatalities",
+       caption = paste0("WA State since ", 
+                        params$from, 
+                        "; x-axis=pct of all incidents, bar label=count")) +
+  xlab("") +
+  ylab("Percent of Total") +
+  
+  # this works with the flipped axis id
+  theme(axis.text.y = element_text(size=8)) +
+  
+  scale_y_continuous(labels = scales::percent_format(acc=1)) +
+  
+  coord_flip()
+
+```
+
+
+### Plot (2 or more)
+
+```{r agencyplot}
+
+tab %>%  filter(n > 2)  %>%
   
   ggplot(aes(reorder(agencyR, perc),
              y = perc, 
@@ -424,7 +581,7 @@ homicides %>%
             Percent = round(100*Number/nrow(homicides), 1)
   ) %>%
   DT::datatable(rownames = F,
-                caption = "Breakdown of Fatalities by Agency of Involved Officer",
+                caption = "Fatalities by Agency of Involved Officer",
                 filter = 'top',
                 escape = FALSE, 
                 extensions = 'Buttons', 
@@ -439,36 +596,39 @@ homicides %>%
 This information is obtained by geocoding the latitude and longitude data on the
 [geocodio](https://www.geocod.io/) platform.  
 
-Washington State has 49 legislative districts.  Since 2015 there have been people killed by police in `r length(unique(homicides$WA_District))` of them.
+Washington State has 49 legislative districts.  Since 2015 there have been people killed by police in `r length(unique(homicides$St_District))` of them.
 
-Given the number of districts involved, we only plot those with more than one fatality since 2015 for legibility .
+Given the number of districts involved, we plot the top 10 for legibility .
 
 The table includes all districts and all incidents.
 
-### Plot
+### Plot (top 10)
 
-```{r ldplot}
-homicides %>%
-  group_by(WA_District) %>%
+```{r ldplot10}
+
+tab <- homicides %>%
+  group_by(St_District) %>%
   summarize(n = n(),
             perc = n / nrow(homicides)) %>%
-  filter(n > 1) %>%
+  arrange(desc(n))
+
+tab[1:10,] %>%
   
-  ggplot(aes(reorder(WA_District, perc),
+  ggplot(aes(reorder(St_District, perc),
              y = perc, 
              label = n)) +
-  geom_text(aes(y = perc), size = 2, nudge_y = .003) +
+  geom_text(aes(y = perc), size = 3, nudge_y = .003) +
   geom_bar(stat="identity", fill="blue", alpha=.5) +
   
-  labs(title = "WA Legislative District (LDs with > 1 fatality only)",
+  labs(title = "Top 10 WA Legislative Districts for homicides by police",
        caption = paste0("WA State since ", 
                         params$from, 
                         "; x-axis=pct of all incidents, bar label=count")) +
-  xlab("") +
+  xlab("Legislative District") +
   ylab("Percent of Total") +
   
   # this works with the flipped axis id
-  theme(axis.text.y = element_text(size=6)) +
+  theme(axis.text.y = element_text(size=8)) +
   
   scale_y_continuous(labels = scales::percent_format(acc=1)) +
   
@@ -476,12 +636,14 @@ homicides %>%
 
 ```
 
+
+
 ### Table
 
 ```{r ldtab}
 
 homicides %>%
-  group_by(WA_District) %>%
+  group_by(St_District) %>%
   summarize(Number = n(),
             Percent = round(100*Number/nrow(homicides), 1)
   ) %>%
@@ -496,36 +658,9 @@ homicides %>%
 
 ```
 
-## Online information availability
-
-This takes the form of a single url to a news article that is available online.  There are often multiple news articles available online, and they may report the conflicting details of the event, as well as conflicting perspectives on the justifiability of the use of lethal force.  It provides definitive evidence of a fatality, but the information contained in the article should be treated as a place to start research, not as the definitive description of the event.
-
-Clickable urls are available in this report in the [Interactive Map](#interactive-map) and [Say their names](#say-their-names) sections. When clicked, they will take you to the article.
-
-```{r info}
-
-tab <- homicides %>%
-  mutate(url_info = case_when(url_info == "" ~ "No",
-                               is.na(url_info) ~ "No",
-                               TRUE ~ "Yes")) %>%
-  group_by(url_info) %>%
-  summarize(Number = n(),
-            Percent = round(100*Number/nrow(homicides), 1)
-  ) %>%
-  bind_rows(data.frame(url_info ="Total", 
-                       Number = sum(.$Number), 
-                       Percent = sum(.$Percent))) 
-
-tab %>%
-  kable(caption = "URL for media reference",
-        col.names = c("Availability", "Number", "Percent")) %>%
-  kable_styling(bootstrap_options = c("striped","hover")) %>%
-  row_spec(row=dim(tab)[1], bold = T) %>%
-  add_footnote(label = "Percents may not sum to 100 due to rounding",
-               notation = "symbol")
 
 
-```
+
 
 
 <a id="mydate"></a>
@@ -584,7 +719,9 @@ p <- ggplot(df_by_month, aes(x = index.date,
   geom_point(size=1.5, shape=21, stroke=0.25,
              aes(fill = factor(year),
                  text = paste0(mon, ": ", count))) +
-  geom_smooth(span = params$smooth_span, col="grey")  +
+  #geom_smooth(span = params$smooth_span, col="grey")  +
+   geom_smooth(span = params$smooth_span-0.2, col="grey")  +
+
   
   # year boundaries
   geom_vline(xintercept = yrs, col="white", alpha=.5) +
@@ -635,7 +772,7 @@ p <- ggplot(df_by_month,
             aes(x = index.date, y = count))  +
   geom_point(size=1.5, shape=21, stroke=0.25,
              aes(text = paste0(mon, ": ", count))) +
-  geom_smooth(span = params$smooth_span, col="grey")  +
+  geom_smooth(span = params$smooth_span-0.2, col="grey")  +
   
   # year boundaries
   geom_vline(xintercept = yrs, col="white", alpha=.5) +
@@ -973,7 +1110,7 @@ graphdf.calyr <-  homicides %>%
       case_when(
         cod == "Gunshot" ~ "Shot", 
         grepl("Active|Terminated", pursuit.type) ~ "Vehicle pursuit",
-        TRUE ~ "Other"),
+        .default =  "Other"),
       levels = c("Shot", "Vehicle pursuit", "Other")),
     year = as.character(year)) %>%
   group_by(year, cod_3) %>%
@@ -1020,7 +1157,7 @@ graphdf.legyr <-  homicides %>%
       case_when(
         cod == "Gunshot" ~ "Shot", 
         grepl("Active|Terminated", pursuit.type) ~ "Vehicle pursuit",
-        TRUE ~ "Other"),
+        .default =  "Other"),
       levels = c("Shot", "Vehicle pursuit", "Other")),
     year = as.character(year)) %>%
   group_by(leg.year, cod_3) %>%
@@ -1061,7 +1198,7 @@ ggplotly(p, tooltip = "text")
 
 # WA vs. other states
 
-Here we report the annual totals up through the last complete year --  `r last_complete_yr` -- with data from the MPV project only, since MPV provides the only consistent national data series.  This limits incidents to those meeting the MPV inclusion criteria, which includes people killed by police with firearms, tasers, asphyxiation and other uses of force, but excludes most pursuit related fatalities.
+Here we report the annual totals up through the last complete year --  `r last_complete_yr` -- with data from the MPV project only, since MPV provides the only consistent national data series.  This limits incidents to those meeting the MPV inclusion criteria: it includes people killed by police with firearms, tasers, asphyxiation and other uses of force, but excludes most pursuit related fatalities.
 
 ## Compared to all other states {.tabset}
 
@@ -1090,23 +1227,23 @@ mpv_tab <- mpv_clean_2015 %>%
 # but can be scraped with "ftp://ftp2..."
 # May still need to download in the future as so much govt data access is uncertain now
 
-# Pop estimates for 2025 are not yet available (as of 1/23/2026) so we estimate 2025 based on average growth rate
-# from 2020-2024
+# Pop estimates for 2026 are not yet available (as of 11/3/2026) so we estimate 2026 based on average growth rate
+# from 2020-2025
 
 pop2020 <- read_csv("ftp://ftp2.census.gov/programs-surveys/popest/datasets/2010-2020/state/totals/nst-est2020-alldata.csv") %>%
   filter(SUMLEV != "020") %>%
   select(NAME, contains("POPESTIMATE"))
   
-pop2025 <- read_csv("ftp://ftp2.census.gov/programs-surveys/popest/datasets/2020-2024/state/totals/NST-EST2024-ALLDATA.csv") %>%
+pop2026 <- read_csv("ftp://ftp2.census.gov/programs-surveys/popest/datasets/2020-2025/state/totals/NST-EST2025-ALLDATA.csv") %>%
   filter(SUMLEV %in% c("010", "040")) %>%
   select(NAME, contains("POPESTIMATE")) %>%
-  mutate(POPESTIMATE2025 = POPESTIMATE2024 + POPESTIMATE2024 * (POPESTIMATE2024-POPESTIMATE2020)/(POPESTIMATE2020*4))
+  mutate(POPESTIMATE2026 = POPESTIMATE2025 + POPESTIMATE2025 * (POPESTIMATE2025-POPESTIMATE2020)/(POPESTIMATE2020*4))
 
 
-pop <- left_join(pop2020, pop2025, by = "NAME") %>%
+pop <- left_join(pop2020, pop2026, by = "NAME") %>%
   rowwise() %>%
   mutate(POPESTIMATE2020 = mean(c_across(contains("2020")))) %>%
-  select(NAME, POPESTIMATE2015:POPESTIMATE2019, POPESTIMATE2020, POPESTIMATE2021:POPESTIMATE2025) %>%
+  select(NAME, POPESTIMATE2015:POPESTIMATE2019, POPESTIMATE2020, POPESTIMATE2021:POPESTIMATE2026) %>%
   filter(NAME != "Puerto Rico") %>%
   rename("state" = "NAME")
 
@@ -1128,7 +1265,7 @@ notwa <- data.frame(state="All Other States",
 
 # using rates per million
 states.all <- bind_rows(rates.tmp, notwa) %>%
-  # h/t https://stackoverflow.com/questions/69831615/dividing-a-set-of-columns-by-another-set-of-columns-based-on-their-column-names
+  # https://stackoverflow.com/questions/69831615/dividing-a-set-of-columns-by-another-set-of-columns-based-on-their-column-names
   mutate(across(starts_with('killed'), 
                 ~ 1000000 * ./get(str_replace(cur_column(), 'killed', 'POPESTIMATE')), 
                 .names = 'rate{.col}'))
@@ -1331,7 +1468,7 @@ homicides %>%
   arrange(desc(date)) %>%
   #mutate(date = format(as.Date(date), format = "%m/%d/%Y")) %>% can't use format, sorting fails
   filter(name != "Unknown") %>%
-  select(name, date, age=age, race, county, `WA-LD`=WA_District, 
+  select(name, date, age=age, race, county, `WA-LD`=St_District, 
          agency, link = url_click) %>%
  
   DT::datatable(rownames = F,
@@ -1358,7 +1495,7 @@ homicides %>%
   mutate(date = as.Date(date)) %>%
   arrange(desc(date)) %>%
   filter(name == "Unknown") %>%
-  select(name, date, age=age, race, county, `WA-LD`=WA_District, 
+  select(name, date, age=age, race, county, `WA-LD`=St_District, 
          agency, link = url_click) %>%
   arrange(desc(date)) %>%
   DT::datatable(rownames = F,

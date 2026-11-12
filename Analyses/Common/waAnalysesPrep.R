@@ -8,7 +8,7 @@
 # Select homicides by police and use age from FE
 
 homicides <- wa_clean_2015 %>% 
-  filter(mod != "Suicide" & !grepl("Medical|Ketamine", cod)) %>%
+  filter(mod != "Suicide") %>%
   
   mutate(age = ifelse(age==999, NA_real_, age)) %>%
   arrange(date)

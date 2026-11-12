@@ -71,12 +71,13 @@ tab <- homicides %>%
   rowwise() %>%
   mutate(Total = sum(c_across(where(is.numeric)))) %>%
   ungroup() %>%
+  arrange(as.numeric(Year)) %>%
   add_row(Year = "Total", summarise(., across(where(is.numeric), sum)))
   
 tab %>%
   kableExtra::kbl(caption = "Breakdown of fatalities by number of data sources and year") %>%
   kable_styling(bootstrap_options = c("striped", "hover")) %>%
-  add_header_above(header = c(" " = 1, "Data Source(s) *" = 4, " " = 1)) %>%
+  add_header_above(header = c(" " = 1, "Number of Data Source(s) *" = 4, " " = 1)) %>%
   row_spec(which(tab$Year == "Total"), bold=T) %>%
   add_footnote(label = "Most records in MPV and WA can be found in multiple sources, see other tabs for details on the overlap",
                notation = "symbol")
@@ -112,7 +113,7 @@ tab <- homicides %>%
 tab %>%
   kableExtra::kbl(caption = "Primary data source by year") %>%
   kable_styling(bootstrap_options = c("striped", "hover")) %>%
-  add_header_above(header = c(" " = 1, "Data Source *" = 4, " " = 1)) %>%
+  add_header_above(header = c(" " = 1, "Primary Data Source *" = 4, " " = 1)) %>%
   row_spec(which(tab$Year == "Total"), bold=T) %>%
   add_footnote(label = "Most records in MPV and WA can be found in multiple sources, see other tabs for the overlap",
                notation = "symbol")
@@ -145,6 +146,13 @@ ____
 ##### IncarcerNation
 
 *Data: 2021+*
+
+____
+
+> Note: Incarcernation has temporarily paused updating while they revamp their website
+
+____
+
 
 IncarcerNation (IN) maintains a comprehensive, searchable website listing every fatality that has occurred during any police encounter in the United States, regardless of type, and without judgment. This includes deaths from direct police use of force [gunshots, tasers, K9, and other immediate lethal police action], as well as fatalities linked to police activities and interactions controlled by police that lead to death. These encompass high-speed pursuits (including deaths of drivers, passengers, bystanders, and pedestrians), collisions involving police vehicles, drownings during police chases, falls from heights during pursuit, asphyxiation during restraint, and suicides occurring in the context of police operations, often during SWAT incidents. ([taken from their "About Us" page](https://incarcernation.com/about-us/)).
 
