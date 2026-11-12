@@ -40,14 +40,18 @@ walocal_draft <- walocal_raw %>%
          fname = "NA", 
          lname = "NA") %>%
   
+  # Race, using the new census categories
+  # https://www.census.gov/about/our-research/race-ethnicity/standards-updates.html
+  
   mutate(
     race = case_when(
       is.na(race) | race == "race unspecified" | race == "" ~ "Unknown",
-      grepl("Asian", race) ~ "API",
+      grepl("Indian", race) ~ "AIAN",
+      grepl("Asian", race) ~ "ASIA",
       grepl("Black", race) ~ "BAA",
       grepl("Latino", race) ~ "HL",
-      grepl("Middle Eastern", race) ~ "ME",
-      grepl("Native", race) ~ "NAA",
+      grepl("Middle Eastern", race) ~ "MENA",
+      grepl("Pacific", race) ~ "NHPI",
       grepl("White", race) ~ "WEA",
       TRUE ~ race),
     race = fct_relevel(race, "Unknown", after = Inf)
@@ -137,7 +141,7 @@ walocal_draft <- walocal_raw %>%
   mutate(fleeing = case_when(
            is.na(fleeing) | fleeing == "" ~ "Unknown",
            grepl("Uncertain", fleeing) ~ "Unknown",
-           grepl("Not|None", fleeing) ~ "Not fleeing",
+           fleeing=="No" ~ "Not fleeing",
            grepl("Veh|veh", fleeing) ~ "Vehicle",
            grepl("Motor|motor", fleeing) ~ "Motorcycle",
            grepl("foot|Foot", fleeing) ~ "Foot",
@@ -147,10 +151,16 @@ walocal_draft <- walocal_raw %>%
                                   "Other", "Unknown"))
 
   ) %>%
-  # NOTE: the mh_crisis field has not been carefully populated
+  # NOTE: the symptoms field has not been carefully populated
   # will use MPV variable for shared cases
   
-  replace_na(list(mh_crisis = "Unknown")) 
+  mutate(
+  symptoms = case_when(
+    is.na(symptoms) ~ "Unknown",
+    grepl("probably|Yes", symptoms) ~ "Mental illness",
+    symptoms == "No" ~ "None",
+    TRUE ~ symptoms)
+  )
 
 # Pursuit variables ----
 
@@ -178,7 +188,7 @@ walocal_clean <- walocal_draft %>%
     latitude, longitude,
     race, gender, age,
     cod, mod, 
-    armed, weapon, fleeing, mh_crisis,
+    armed, weapon, fleeing, symptoms,
     pursuit.type:pursuit.incinum,
     agency, agency.type, officer_names,
     description, url_info, url_click, url_addl, officer_url,

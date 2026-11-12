@@ -17,7 +17,7 @@ merge_draft <- stringdist_full_join(
   mpv_clean_wa %>% filter(year > 2021), 
   walocal_clean,
   by = c("lname", "fname", "date", "city"),
-  max_dist = 2,
+  max_dist = 1,
   ignore_case = T) %>%
   
   rename_with(~gsub(".x", ".mpv", .x, fixed=T)) %>%
@@ -161,7 +161,8 @@ if(any(dupe.mpv>1)){
 
 ### 3. Inconsistencies in merged info ----
 
-## Fuzzy string matching allows for some errors in key variables
+## Fuzzy string matching allows for some errors in key variables (name, date, city)
+## check also gender, age
 ## Fix by inspection, in wa_local, or
 ## using the fixes_mpv.R (and report)
 
@@ -175,7 +176,7 @@ attribute.mismatch <- merge_draft %>%
            age.mpv != age.wa |  
            city.mpv != city.wa) %>%
   select(waID, mpvID, flname.wa, flname.mpv, date.wa, date.mpv,
-         gender.wa, gender.mpv, age.wa, age.mpv, city.wa, city.mpv)
+         city.wa, city.mpv, gender.wa, gender.mpv, race.wa, race.mpv, age.wa, age.mpv, )
 
 if(nrow(attribute.mismatch)>1){
   message("\n *** Attribute mismatches: \n")
@@ -218,10 +219,13 @@ cat(paste("\n *** ", sum(is.na(merge_draft$mpvID)), "additional cases in WA loca
 #   cat("\n *** No agency mismatches \n\n")
 # }
 
-# Create consensus race variable when possible
-# for now, just race.  
+# Create consensus variables when possible
+# for now, just 
+## race (assume wa is more accurate) and 
+## symptoms (assume mpv is more accurate).  
 # Other vars (gender:agency) show .wa has most info
 
 merge_walocal_mpv <- merge_draft %>%
-  mutate(race.wa = if_else((race.wa=="Unknown" & !is.na(race.mpv)), race.mpv, race.wa))
+  mutate(race.wa = if_else((race.wa=="Unknown" & !is.na(race.mpv)), race.mpv, race.wa),
+         symptoms.wa = if_else(!is.na(symptoms.mpv), symptoms.mpv, symptoms.wa))
 

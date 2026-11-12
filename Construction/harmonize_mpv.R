@@ -8,19 +8,13 @@ num <- 1:51
 
 mpv_draft <- mpv_temp %>%
   
-  # Make varnames easier to work with ----
-
-  rename_with(.fn = ~sub(" \\(Source.*\\)", "", .), .cols = contains("Source:")) %>% 
-  rename_with(.fn = ~sub(" \\(https.*\\)", "", .), .cols = contains("https")) %>% 
-  rename_with(.fn = ~sub(" \\(DRAFT\\)", "", .), .cols = contains("DRAFT")) %>% 
-  rename_with(.fn = ~sub(" \\(via.*\\)", "", .), .cols = contains("via")) %>% 
-  rename_with(.fn = ~sub(" \\(http.*\\)", "", .), .cols = contains("http")) %>% 
+  mutate(mpvID = mpv_id) %>%
   
   # Victim info ----
 
 mutate(name = case_when(
   is.na(name) ~ "Unknown",
-  name == "Name withheld by police" ~ "Unknown",
+  grepl("Withheld", name) ~ "Unknown",
   TRUE ~ name),
   
   name = str_remove(name, " Jr"),
@@ -42,33 +36,23 @@ mutate(name = case_when(
   lname = "NA"
 ) %>%
   
-  ## Age 
-  ## MPV uses "Unknown" for NA which turns this into a character
-  ## also one case is "40s", treated as NA below (still throws warning)
-  
-  mutate(age = as.numeric(`Victim's age`),
-         age = replace_na(age, 999)
-  ) %>%
-  
-  mutate(gender = str_to_sentence(`Victim's gender`),
+  mutate(gender = if_else(is.na(gender), "Unknown", str_to_sentence(gender)),
          gender = fct_relevel(gender, "Unknown", after = Inf)
   ) %>%
   
   ## Race - not sure what's happening with imputation for MPV
-  ## A few multiple race/ethnicity codings (all Hispanic)
-  ## We pull out Hispanic first, then all other single races
-  ## Combine Asian and Pacific islander for consistency with Census
-  mutate(race = `Victim's race`,
+  ## Using the new census categories https://www.census.gov/about/our-research/race-ethnicity/standards-updates.html
+  mutate(race.orig = race,
          
          race = case_when(
-           grepl("Hispanic", race) ~ "HL",
-           race == "Asian" ~ "API",
-           race == "Black" ~ "BAA",
-           race == "Native American" ~ "NAA",
-           race == "Pacific Islander" ~ "API",
-           race == "White" ~ "WEA",
-           grepl("Unknown", race) ~ "Unknown",
-           TRUE ~ race),
+           grepl("Indian", race.orig) ~ "AIAN",
+           race.orig == "Asian" ~ "ASIA",
+           race.orig == "Black" ~ "BAA",
+           grepl("Hispanic", race.orig) ~ "HL",
+           grepl("Pacific", race.orig) ~ "NHPI",
+           race.orig == "White" ~ "WEA",
+           grepl("Unknown", race.orig) ~ "Unknown",
+           TRUE ~ race.orig),
          race = fct_relevel(race, "Unknown", after = Inf)
   ) %>%
   
@@ -79,58 +63,62 @@ mutate(name = case_when(
   
   # Location info ----
 
-mutate(city = City,
-       st = State,
-       state = state_fullname_fn(st),
-       state.num = num[match(st, st.abb51)],
-       zip = as.numeric(Zipcode),
-       county = County
+mutate(st = st.abb51[match(state, state.name51)],
+       state.num = num[match(state, sort(state.name51))]
 ) %>%
   
   # Agency info ----
 
-mutate(agency = `Agency responsible for death`,
+mutate(agency = agency_responsible,
        
+       # only possible to code if single agency
        agency.type = case_when(
          is.na(agency) ~ "Unknown",
-         grepl("^.*,.*", agency) ~ "Multiple agencies",
-         grepl("^.*(Campus|University|College).*", agency) ~ "University Campus Police",
-         grepl("^.*(State|Patrol).*", agency) ~ "State Police",
-         grepl("^.*Sheriff.*", agency) ~ "County Sheriff's Office",
-         grepl("^.*(Police|police|Public Safety|Town|City).*", agency) ~ "Local Police Department",
-         grepl("^.*Correction.*", agency) ~ "Corrections Dept",
-         grepl("^.*County.*", agency) ~ "Other County unit",
-         grepl("^.*U.S.*Alchohol.*", agency) ~ "US ATF",
-         grepl("^.*U.S.*Border.*", agency) ~ "US CBP",
-         grepl("^.*U.S. Federal Bureau.*", agency) ~ "US FBI",
-         grepl("^.*U.S. Immigration.*", agency) ~ "US ICE",
-         grepl("^.*U.S. Marshal.*", agency) ~ "US Marshals",
-         grepl("^.*U.S.|Military|Air Force.*", agency) ~ "Other US unit",
+         grepl(",", agency) ~ "Multiple agencies",
+         grepl("(Campus|University|College)", agency) ~ "University Campus Police",
+         grepl("(State|Patrol)", agency) ~ "State Police",
+         grepl("Sheriff", agency) ~ "County Sheriff",
+         grepl("(Police|police|Public Safety|Town|City)", agency) ~ "Local Police",
+         grepl("(Cleveland|Detroit|Geneva|Mescalero)", agency) ~ "Local Police",
+         grepl("Correction", agency) ~ "Corrections Dept",
+         grepl("County", agency) ~ "Other County unit",
+         grepl("Bureau of Alchohol", agency) ~ "US ATF",
+         grepl("Drug", agency) ~ "US DEA",
+         grepl("Border", agency) ~ "US CBP",
+         grepl("Federal Bureau", agency) ~ "US FBI",
+         grepl("Immigration", agency) ~ "US ICE",
+         grepl("Homeland", agency) ~ "US HS",
+         grepl("U.S. Marshal", agency) ~ "US Marshals",
+         grepl("(U.S.|Federal|Military|Pentagon|National|Air Force|Bureau|Internal)", agency) ~ "Other Federal unit",
+         grepl("(Tribal|Navajo|Nation)", agency) ~ "Tribal Police",
          TRUE ~ "Other State unit"),
+         #TRUE ~ "Check if all state units"),
        
        agency.type = factor(agency.type,
-                            levels = c("Local Police Department", "County Sheriff's Office", "State Police",
-                                       "University Campus Police", "Corrections Dept",
-                                       "US CBP", "US ICE", "US FBI", "US Marshals",
-                                       "Other State unit", "Other County unit", "Other US unit",
-                                       "Multiple agencies", "Unknown")),
+                            levels = c("Local Police", "County Sheriff", "State Police",
+                                       "Tribal Police", "University Campus Police", "Corrections Dept",
+                                       "US ATF", "US DEA", "US CBP", "US FBI", "US ICE", "US HS", "US Marshals", 
+                                       "Other State unit", "Other County unit", "Other Federal unit",
+                                       "Multiple agencies", "Unknown"
+                                       #"Check if all state units"
+                                       )),
        
-       agency.ori = `ORI Agency Identifier (if available)`
+       agency.ori = ori
 ) %>%
   
   # COD info ----
-## Note this records the types of force used not the official cause of death
+## Based on the use_of_force variable,
+## which records the types of force used not the official cause of death
 ## We aggregate the multiples into one category
 
-mutate(cod = `Cause of death`,
+mutate(cod = use_of_force,
        cod = case_when(
-         grepl(",", cod) ~ "Multiple types of force",
+         grepl(";", cod) ~ "Multiple types of force",
          grepl("Gunshot", cod) ~ "Gunshot",
-         grepl("Asph|Restraint|restraint", cod) ~ "Asphyxiated/Restrained",
-         grepl("Beaten|Baton", cod) ~ "Beaten",
-         grepl("Taser", cod) ~ "Taser",
-         grepl("Pepper", cod) ~ "Chemical weapon", # too few to break out?
-         # grepl("dog|Dog", cod) ~ "Police dog", # ditto
+         grepl("asph|restraint", cod) ~ "Asphyxiated/Restrained",
+         grepl("Physical", cod) ~ "Physical force",
+         grepl("Energy", cod) ~ "Taser",
+         grepl("Chemical", cod) ~ "Chemical weapon", # too few to break out?
          grepl("Vehicle", cod) ~ "Vehicle",
          TRUE ~ "Other"),
        cod = factor(cod),
@@ -138,168 +126,242 @@ mutate(cod = `Cause of death`,
        cod = fct_relevel(cod, "Other", after = Inf)
 ) %>%
   
+  # Use of force info ----
+  ## how often alone, and in combination
+
+mutate(
+  uof = use_of_force,
+  
+  uof.chem = case_when(
+    grepl('irritant;|; Chemical', use_of_force) ~ "Chemical plus other",
+    grepl("irritant", use_of_force) ~ "Chemical weapon only",
+    TRUE ~ "Not used"),
+
+  uof.taser = case_when(
+    grepl('Device;|; Conducted', use_of_force) ~ "Taser plus other",
+    grepl("Device", use_of_force) ~ "Taser weapon only",
+    TRUE ~ "Not used"),
+  
+  uof.gun = case_when(
+    grepl('shot;|; Gun', use_of_force) ~ "Gunshot plus other",
+    grepl("irritant", use_of_force) ~ "Gunshot only",
+    TRUE ~ "Not used"),
+  
+  uof.phy = case_when(
+    grepl('force;|; Phy', use_of_force) ~ "Physical plus other",
+    grepl("force", use_of_force) ~ "Physical force only",
+    TRUE ~ "Not used"),
+  
+  uof.prj = case_when(
+    grepl('Projectile;|; Projectile', use_of_force) ~ "Projectile plus other",
+    grepl("Projectile", use_of_force) ~ "Projectile only",
+    TRUE ~ "Not used"),
+  
+  uof.asp = case_when(
+    grepl('asphyxiation;|; Prone', use_of_force) ~ "Aspyxiation/Restraint plus other",
+    grepl("asphyxiation", use_of_force) ~ "Asphyxiation/Restraint only",
+    TRUE ~ "Not used"),
+  
+  uof.veh = case_when(
+    grepl('Vehicle;|; Vehicle', use_of_force) ~ "Vehicle plus other",
+    grepl("Vehicle", use_of_force) ~ "Vehicle only",
+    TRUE ~ "Not used"),
+  
+) %>%
+  
   ## Description ----
-mutate(description = `Media description of the circumstances surrounding the death`) %>%
+mutate(description = circumstances) %>%
   
   ## Case disposition  ----
 
-mutate(case.disposition = `Official disposition of death (justified or other)`,
+mutate(case.disposition = disposition_official,
        
-       case.disposition = case_when(
+       ## Admin review
+       admin.rev = case_when(
          is.na(case.disposition) ~ "Unknown",
-         grepl("Just|just|Clear|accident|Accident|Excusable", case.disposition) ~ "Justified or cleared",
-         grepl("Convicted|convicted|guilty", case.disposition) ~ "Criminal conviction",
-         grepl("Charged|Indicted", case.disposition) ~ "Criminal charge",
-         grepl("Civil.*award|awared", case.disposition) ~ "Civil award",
-         grepl("Civil", case.disposition) ~ "Civil suit filed",
-         grepl("Pend|Under", case.disposition) ~ "Pending",
-         grepl("Suicide|suicide", case.disposition) ~ "Murder/suicide",
-         grepl("unknown|Unreported", case.disposition) ~ "Unknown",
-         grepl("Unjustified", case.disposition) ~ "Administrative discipline",
-         TRUE ~ case.disposition),
-       case.disposition = factor(case.disposition),
+         grepl("Admin", case.disposition) ~ "Yes",
+         TRUE ~ "No info"),
+       admin.rev = factor(admin.rev,
+                          levels = c("Yes", "No info", "Unknown")),
        
-       criminal.charges = `Criminal Charges?`,
-       charge.outcome = case_when(
-         grepl("Known|known", criminal.charges) ~ "No known charges",
-         grepl("Acqu|Drop|drop", criminal.charges) ~ "Dropped or acquitted",
-         grepl("Plead", criminal.charges) ~ "Plead guilty",
-         grepl("Mistrial", criminal.charges) ~ "Mistrial",
-         grepl("Convicted", criminal.charges) ~ "Convicted",
-         criminal.charges == "Charged with a crime" ~ "Charged, outcome unknown",
-         TRUE ~ criminal.charges
-       ),
-       charge.outcome = factor(charge.outcome, 
-                                 levels=c("Plead guilty", "Convicted",
-                                          "Dropped or acquitted", "Mistrial",
-                                          "Charged, outcome unknown", "No known charges"))
+       # Note there is info on both external and internal review; not pulled out here
+       admin.outcome = case_when(
+         is.na(case.disposition) ~ "Unknown",
+         grepl("Admin.*no discipline", case.disposition) ~ "No discipline",
+         grepl("Admin.*disciplined", case.disposition) ~ "Disciplined",
+         grepl("Admin.*terminated", case.disposition) ~ "Terminated",
+         grepl("Admin.*decertified", case.disposition) ~ "Decertified",
+         grepl("Admin", case.disposition) ~ "Other",
+         TRUE ~ "No info"),
+       admin.outcome = factor(admin.outcome,
+                          levels = c("Disciplined", "Terminated", "Decertified", "Other",
+                            "No info", "Unknown")),
+         
+       civil.case = case_when(
+         is.na(case.disposition) ~ "Unknown",
+         grepl("CI", case.disposition) ~ "Yes",
+         TRUE ~ "No info"),
+       civil.case = factor(civil.case,
+                           levels = c("Yes", "No info", "Unknown")),
+       civil.outcome = case_when(
+         is.na(case.disposition) ~ "Unknown",
+         grepl("CI.*awarded", case.disposition) ~ "Damages awarded",
+         grepl("CI.*settl", case.disposition) ~ "Settlement",
+         grepl("CI.*blocked", case.disposition) ~ "Dismissed",
+         grepl("CI.*dismiss", case.disposition) ~ "Dismissed",
+         grepl("CI.*filed", case.disposition) ~ "Civil suit filed",
+         grepl("CI.*not liable", case.disposition) ~ "Not liable",
+         grepl("CI", case.disposition) ~ "Other",
+         TRUE ~ "No civil suit"),
+       civil.outcome = factor(civil.outcome,
+                              levels = c("Civil suit filed", "Damages awarded", "Settlement", 
+                                         "Not liable", "Dismissed", "Other",
+                                         "No civil suit", "Unknown")),
+       
+       
+       criminal.charge = case_when(
+         is.na(case.disposition) ~ "Unknown",
+         grepl("CR", case.disposition) ~ "Yes",
+         TRUE ~ "No info"),
+       criminal.charge = factor(criminal.charge,
+                                levels = c("Yes", "No info", "Unknown")),
+       
+       criminal.outcome = case_when(
+         is.na(case.disposition) ~ "Unknown",
+         grepl("CR.*not indict", case.disposition) ~ "No indictment/charges",
+         grepl("CR.*not file", case.disposition) ~ "No indictment/charges",
+         grepl("CR.*dismiss", case.disposition) ~ "Dismissed",
+         grepl("CR.*Mistrial", case.disposition) ~ "Mistrial",
+         grepl("CR.*acquit", case.disposition) ~ "Acquitted",
+         grepl("CR.*dropped", case.disposition) ~ "Dropped",
+         grepl("CR.*convicted", case.disposition) ~ "Convicted",
+         grepl("CR.*charged", case.disposition) ~ "Charged",
+         grepl("CR", case.disposition) ~ "Other",
+         TRUE ~ "No criminal case"),
+       criminal.outcome = factor(criminal.outcome,
+                                 levels = c("No indictment/charges",
+                                            "Charged", "Dropped", "Dismissed", 
+                                            "Convicted", 
+                                            "Acquitted", "Mistrial", 
+                                            "Other",
+                                            "No criminal case", "Unknown")),
+       
+       
+       federal.charge = case_when(
+         is.na(case.disposition) ~ "Unknown",
+         grepl("Federal.*Civil", case.disposition) ~ "Civil rights suit",
+         grepl("Federal.*Criminal", case.disposition) ~ "Criminal civil rights charges",
+         TRUE ~ "No info"),
+       federal.charge = factor(federal.charge,
+                               levels = c("Civil rights suit", "Criminal civil rights charges", 
+                                          "No info", "Unknown")),
+       
+       federal.outcome = case_when(
+         is.na(case.disposition) ~ "Unknown",
+         grepl("Federal. Prosecutor did not", case.disposition) ~ "No charges",
+         grepl("Federal.*dismiss", case.disposition) ~ "Dismissed",
+         grepl("Federal.*not liable", case.disposition) ~ "Not liable",
+         grepl("Federal.*acquit", case.disposition) ~ "Acquitted",
+         grepl("Federal", case.disposition) ~ "Other",
+         TRUE ~ "No federal case"),
+       federal.outcome = factor(federal.outcome,
+                                levels = c("No charges", "Dismissed",  
+                                           "Acquitted", "Not liable", 
+                                           "Other",
+                                           "No federal case", "Unknown"))
 ) %>%
 
   
   ## LE narrative ----
 
-mutate(armed = `Armed/Unarmed Status`,
+mutate(armed = allegedly_armed_with,
        
        armed = case_when(
          grepl("Unarmed", armed) ~ "Unarmed",
-         grepl("armed|Armed", armed) ~ "Alleged armed",
-         armed == "Vehicle" ~ "Vehicle",
-         TRUE ~ "Unknown"),
-       armed = fct_relevel(armed, "Unknown", 
-                           after = Inf)
+         grepl("Undetermined", armed) ~ "Unknown",         
+         TRUE ~ "Alleged Armed")
 ) %>%
   
-  mutate(weapon = `Alleged Weapon`,
+  mutate(weapon = allegedly_armed_with,
          
          weapon =case_when(
-           weapon %in% c("undetermined", "unknown weapon") ~ "unknown",
-           grepl("airsoft|bb|BB|bean|flare|toy", weapon) ~ "toy or nonlethal firearm",
-           grepl("gun|Gun", weapon)  ~ "firearm",
-           grepl("taser", weapon) ~ "taser",
-           grepl("ax|Ax|blade|bayonet|bow|cleaver|cutter|edge|glass|hatchet|knife|knives", weapon)  ~ "edged weapon",
-           grepl("machete|pitch|screwdiver|scissor|Scissor|sharp|spear|spike|sword", weapon)  ~ "edged weapon",
-           grepl("blunt|bat|baton|brick|chair|club|crowbar|hammer|Hammer|iron|lamp|level", weapon)  ~ "blunt object",
-           grepl("mallett|metal|oar|post|pole|pipe|rock|rod", weapon)  ~ "blunt object",
-           grepl("shovel|hockey|table|tree|wrench|wood", weapon)  ~ "blunt object",
-           weapon == "vehicle" ~ "vehicle",
-           grepl("spray", weapon) ~ "chemical spray",
-           grepl("None|No|no|none", weapon) ~ "none",
-           TRUE ~ "other"),
-         weapon = fct_relevel(weapon, "none", after = 0),
-         weapon = fct_relevel(weapon, "other", after = Inf),
-         weapon = fct_relevel(weapon, "unknown", after = Inf)
+           grepl(";", weapon) ~ "Multiple weapons",
+           grepl("Gun", weapon)  ~ "Firearm",
+           grepl("Edged", weapon)  ~ "Edged weapon",
+           grepl("Replica", weapon)  ~ "Replica weapon",
+           grepl("Vehicle", weapon)  ~ "Vehicle",
+           grepl("Other", weapon)  ~ "Other weapon",
+           grepl("Unknown", weapon) ~ "Unknown weapon",
+           TRUE ~ armed),
+         weapon = fct_relevel(weapon, "Unarmed", after = 0),
+         weapon = fct_relevel(weapon, "Multiple weapons", after = Inf),
+         weapon = fct_relevel(weapon, "Other weapon", after = Inf),
+         weapon = fct_relevel(weapon, "Unknown weapon", after = Inf),
+         weapon = fct_relevel(weapon, "Unknown", after = Inf)
   ) %>%
   
-  mutate(threat.level = `Alleged Threat Level`,
-         threat.description = `Threat Level Description`,
-         
-         # Multiple flee types are hierarchically coded
-         fleeing = case_when(
-           is.na(Fleeing) ~ "Unknown",
-           grepl("car|Car", Fleeing) ~ "Vehicle",
-           grepl("Foot|foot", Fleeing) ~ "Foot",
-           grepl("other|Other", Fleeing) ~ "Other",
-           grepl("Not|not", Fleeing) ~ "Not fleeing"),
-         fleeing = factor(fleeing, 
-                          levels = c("Not fleeing", "Vehicle", "Foot", 
-                                     "Other", "Unknown"))
+  mutate(weapon.gun = case_when(
+    grepl("Gun", allegedly_armed_with) ~ "Firearm",
+    weapon == "Unarmed" ~ "Unarmed",
+    weapon == "Unknown" ~ "Unknown",
+    TRUE ~ "Another weapon"),
+    weapon.gun = factor(weapon.gun,
+                        levels = c("Firearm", "Another weapon", "Unarmed", "Unknown"))
+    
   ) %>%
   
-  mutate(bodycam = `Body Camera`,
-         bodycam = case_when(
-           grepl("Bystand", bodycam) ~ "Bystander",
-           grepl("Dash", bodycam) ~ "Dashcam",
-           grepl("Surv", bodycam) ~ "Surveillance",
-           grepl("yes|Yes", bodycam) ~ "Bodycam",
-           grepl("no|No", bodycam) ~ "None",
-           bodycam == "none" ~ "None",
+  # this variable is being updated in real time (https://mappingpoliceviolence.org/methodology)
+  mutate(threat.description = if_else(is.na(threat_perception), 
+                                      wapo_threat_level, 
+                                      threat_perception)
+  ) %>%
+  
+  mutate(footage = incident_footage,
+         footage = case_when(
+           grepl(";", footage) ~ "Multiple footage types",
+           grepl("Body", footage) ~ "Bodycam",
+           grepl("Bystand", footage) ~ "Bystander",
+           grepl("Dash", footage) ~ "Dashcam",
+           grepl("Surv", footage) ~ "Surveillance",
+           grepl("Taser", footage) ~ "Taser",
+           footage == "Other" ~ "Other",
+           footage == "None" ~ "None",
            TRUE ~ "Unknown"),
-         bodycam = fct_relevel(bodycam, "None", after = Inf),
-         bodycam = fct_relevel(bodycam, "Unknown", after = Inf)
+         footage = fct_relevel(footage, "Multiple footage types", after = Inf),
+         footage = fct_relevel(footage, "None", after = Inf),
+         footage = fct_relevel(footage, "Unknown", after = Inf)
   ) %>%
   
-  
-  # NOTE: in FE the `Symptoms of mental illness? INTERNAL USE, NOT FOR ANALYSIS`
-  # field only flags cases where a mental health issue was known before the
-  # officers arrived on the scene.  Many missing/unknown cases here
-  mutate(symptoms = `Symptoms of mental illness?`,
-         symptoms = case_when(
-           is.na(symptoms) ~ "Unknown",
-           symptoms %in% c("", "Unknown", "Unclear", "unknown") ~ "Unknown",
-           symptoms == "Yes" ~ "Mental Illness",
-           symptoms == "No" ~ "None",
-           grepl("Drug", symptoms) ~ "Drugs or Alcohol",
-           TRUE ~ symptoms) 
-  ) %>%
   
   ## Officer info ----
 
-mutate(offduty = `Off-Duty Killing?`,
-       offduty = ifelse(grepl("duty", offduty), "Yes", "Unknown"),
+mutate(offduty = off_duty_killing,
+       offduty = ifelse(is.na(offduty), "Unknown", "Yes"),
        offduty = fct_relevel(offduty, "Unknown", after = Inf),
        
-       officer.names = `Names of Officers Involved`,
-       officer.races = `Race of Officers Involved`,
-       officer.previous = `Known Past Shootings of Officer(s)`
+       officer.names = officer_names,
+       officer.races = officer_races,
+       officer.previous = officer_known_past_shootings, # needs cleaning
+       officer.charges = officer_charged
 ) %>%  
   
   
   ## Context info ----
 
-# MPV codes incidents with possibly multiple encounter types.
-# The recode below uses these hierarchically
-
-mutate(context = `Encounter Type`,
+mutate(encounter.type = encounter_type,
+       encounter.type = fct_relevel(encounter.type, "None/Unknown", after = Inf),
        
-       context = case_when(
-         is.na(context) ~ "None or unknown",
-         grepl("Crime/Dom", context) ~ "Violent-Domestic",
-         grepl("Crime/Men", context) ~ "Violent-Mental health",
-         grepl("Non-Violent", context) ~ "Nonviolent-Other",
-         grepl("Violent|VIolent", context) ~ "Violent-Other",
-         grepl("Weapon|weapon", context) ~ "Weapon",
-         grepl("Traffic", context) ~ "Traffic stop",
-         grepl("People", context) ~ "Other crimes against people",
-         grepl("Other|None", context) ~ "None or unknown",
-         grepl("Mental", context) ~ "Mental health or welfare check",
-         grepl("Domestic", context) ~ "Domestic disturbance",
-         TRUE ~ context),
+       initial.reason = initial_reason, # 2000 values
        
-       context.violent = case_when(
-         grepl("Violent|Weapon", context) ~ "Violent crime",
-         grepl("people", context) ~ "Nonviolent-Crime against person",
-         TRUE ~ "Other"),
+       symptoms = case_when(
+         grepl("Drug", signs_of_mental_illness) ~ "Drug or alcohol",
+         signs_of_mental_illness == "Yes" ~ "Mental illness",
+         signs_of_mental_illness == "No" ~ "None",
+         TRUE ~ "Unknown"),
        
-       context = fct_relevel(context, "None or unknown", after = Inf),
-       context.violent = fct_relevel(context.violent, "Other", after = Inf),
-       
-       context.detail = `Initial Reported Reason for Encounter`,
-       
-       call4svc = `Call for Service?`,
+       call4svc = call_for_service,
        call4svc = case_when(
-         is.na(call4svc) ~ "Unknown",
-         call4svc=="yes" ~ "Yes",
-         call4svc == "Unavailable" ~ "Unknown",
+         is.na(call4svc) | call4svc == "Unavailable" ~ "Unknown",
          TRUE ~ call4svc),
        call4svc = fct_relevel(call4svc, "Unknown", after = Inf)
 ) %>%
@@ -311,71 +373,82 @@ mutate(context = `Encounter Type`,
   #  * excludes any pursuit-related fatalities otherwise caused by the fleeing vehicle
 
   # 3 fields include codes for potential pursuit-related fatalities
-  #  * cod = Vehicle these are always "Active pursuits"
+  #  * cod = Vehicle (only) these are always "Active pursuits"
   #  * weapon = Vehicle;
   #  * description includes "pursuit" or "chase" or "fled" or variants of these
 
-  # These only allow for a first draft, lots of manual coding follows
+  # These only allow for a first draft, lots of manual coding follows, and this is only done for WA
   # * "Involved pursuit" cases must be reviewed manually, not all descriptions include pursuit terms
   # * And it is not possible to code the pursuit.victim type or pursuit.incinum by script, 
   # * so that is done manually and read back in
 
-  mutate(pursuit.type = if_else(grepl("Vehicle|vehicle", cod), "Active pursuit", "Not pursuit related"),
+# Code fleeing hierarchically, with Vehicle at top to identify possible pursuits
+  mutate(flee.orig = flee,
+         fleeing = case_when(
+           is.na(flee) ~ "Unknown",
+           grepl("Not", flee) ~ "Not fleeing",
+           grepl("Car", flee) ~ "Vehicle",
+           grepl("Foot", flee) ~ "Foot",
+           TRUE ~ "Other"),
+         fleeing = factor(fleeing, levels = c("Not fleeing", "Vehicle", "Foot", "Other", "Unknown"))
+) %>%
+  mutate(pursuit.type = if_else(grepl("Vehicle|vehicle", cod), "Active pursuit", "Unclear"),
          cod.vehicle = if_else(grepl("Vehicle|vehicle", cod), 1, 0),
+         flee.vehicle = if_else(flee == "Vehicle", 1, 0),
          weapon.vehicle = if_else(grepl("Vehicle|vehicle", weapon), 1, 0),
          desc.pursuit = if_else(grepl("pursu|Pursu|chase|flee|fled", description), 1, 0)
   ) %>%
   rowwise() %>%
-  mutate(pursuit.indicators = sum(cod.vehicle, weapon.vehicle, desc.pursuit, na.rm=T) 
+  mutate(pursuit.indicators = sum(cod.vehicle, flee.vehicle, weapon.vehicle, desc.pursuit, na.rm=T) 
   ) %>%
   
   ## Geographic-related info ----
   
-  mutate(census.tract = `Census Tract Code`,
-         community.trulia = Geography,
-         community.hud = `HUD UPSAI Geography`,
-         community.nchs = `NCHS Urban-Rural Classification Scheme Codes`,
-         medhhinc.acs = `Median household income ACS Census Tract`,
-         latitude = Latitude,
-         longitude = Longitude,
-         census.pop = `Total Population of Census Tract 2019 ACS 5-Year Estimates`,
-         census.nhw = `White Non-Hispanic Percent of the Population ACS`,
-         census.nhb = `Black Non-Hispanic Percent of the Population ACS`,
-         census.na = `Native American Percent of the Population ACS`,
-         census.asian = `Asian Percent of the Population ACS`,
-         census.pi = `Pacific Islander Percent of the Population ACS`,
-         census.om = `Other/Two or More Race Percent of the Population ACS`,
-         census.hisp = `Hispanic Percent of the Population ACS`,
-         congress.dist = `Congressional District`,
-         congress.rep = `Congressional Representative Full Name`,
-         congress.rep.party = `Congressional Representative Party`
+  mutate(census.tract = tract,
+         community.trulia = geography, # community vars have high missingness
+         community.hud = urban_rural_uspsai,
+         community.nchs = urban_rural_nchs,
+         medhhinc.acs = hhincome_median_census_tract,
+         census.pop = pop_total_census_tract, # a few cases missing pops
+         census.nhw = pop_white_census_tract,
+         census.nhb = pop_black_census_tract,
+         census.na = pop_native_american_census_tract,
+         census.asian = pop_asian_census_tract,
+         census.pi = pop_pacific_islander_census_tract,
+         census.om = pop_other_multiple_census_tract,
+         census.hisp = pop_hispanic_census_tract,
+         congress.dist = congressional_district_113, # about 30% missing CD
+         congress.rep = paste(congressperson_firstname, congressperson_lastname),
+         congress.rep.party = congressperson_party
   ) %>%
   
   ## Prosecutor info ----
-mutate(chief.prosecutor = `Officer Prosecuted by (Chief Prosecutor)`,
-       prosecutor.race = `Prosecutor Race`,
-       prosecutor.gender = `Prosecutor Gender`,
-       prosector.party = `Chief Prosecutor Political Party`,
-       prosecutor.term = `Chief Prosecutor Term`,
-       court.prosecutor = `Officer Prosecuted by (Prosecutor in Court)`,
-       prosecutor.special = `Special Prosecutor?`,
-       independent.investigation = `Independent Investigation?`,
-       url.prosecutor = `Prosecutor Source Link`
+mutate(chief.prosecutor = prosecutor_head, # 99% NA, need to clean for case status
+       prosecutor.race = prosecutor_race,
+       prosecutor.gender = prosecutor_gender,
+       prosector.party = prosecutor_party,
+       prosecutor.term = prosecutor_term,
+       court.prosecutor = prosecutor_in_court,
+       prosecutor.special = prosecutor_special, # 99% NA
+       independent.investigation = independent_investigation,
+       url.prosecutor = prosecutor_url
 ) %>%
   
   ## Media links ----
 
-mutate(url_pic = `URL of image of victim`,
-       url_info = `Link to news article or photo of official document`,
+mutate(url_pic = victim_image, # 30% NA
+       url_info = str_split_i(news_urls, ";", 1),
+       url_info_all = news_urls # only a few have more than one
 ) %>%
   
   ## Create date/state/city-sorted rowID for cleaning ----
 arrange(date, st, city) %>%
   mutate(rowID = row_number()) %>%
   
-  ## Select the cleaned variables into the new df ----
-select(mpvID:date, name2:cod, cod.orig = `Cause of death`,
-       case.disposition:url_info, description) 
+  ## Select a subset of the cleaned variables into the new df ----
+select(mpvID, feID, wapoID, recordID=record_id, name, date, age, gender,race,
+       street_address, city, county, state, st, zip, latitude, longitude,
+       name2:call4svc, fleeing, pursuit.type:url_info_all, description) 
 
 
 # Create clickable source url for Rpubs reports ----

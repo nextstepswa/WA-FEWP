@@ -53,6 +53,7 @@ make_url_fn <- function(x) {
 
 
 st.abb51 <- c(sort(state.abb), "DC")
+state.name51 <- c(sort(state.name), "District of Columbia")
 
 # Scrape data (script) ----
 
@@ -95,40 +96,70 @@ source(here("Construction", "harmonize_wa.R"))
 
 ## FE extra cases ----
 
+## Goal: create a consistent inclusion criteria for WA cases 2000-current
+
 ## Two types of FE incidents are not in MPV:  pre-2013 and intentional exclusions.
 
-## MPV intentionally excludes cases from FE that where the COD is
-## not a homicide (i.e., suicides and accidents), and
-## excludes vehicular homicides not committed by police.  
+## Intentional exclusions:
+##  cases from FE where the MOD is not homicide (i.e., suicides and accidents), and
+##  vehicular homicides not committed by police.
+
 ## Regarding pursuits, this is what they say on their website: 
 ## https://mappingpoliceviolence.us/aboutthedata
 
-# A person was coded as having a Vehicle as a weapon if they were one or more of the following:
+# "A person was coded as having a Vehicle as a weapon if they were one or more of the following:
 #   a driver who was killed while hitting, dragging or driving towards officers or civilians
 #   a driver who was driving and/or being pursued by police at high speeds, presenting a danger to the public
 # People who were killed by a civilian driver or crashed without being hit directly and intentionally 
 # by police during a police pursuit are not included in the database. Note that an estimated 300 people 
 # are killed in police pursuits each year and only a small proportion of these cases are included 
 # in the database (most deadly pursuits end after the driver crashes themselves into something or 
-# hits a civilian vehicle without being directly rammed/hit by police).
+# hits a civilian vehicle without being directly rammed/hit by police)."
 
-## Our WA data collection follows the original FE inclusion criteria,
-## So we recover the excluded FE cases here, for a consistent WA series.
+## Our WA local data collection (2022-) mostly follows the original FE inclusion criteria:
+##  we include suicides during an encounter with police
+##  we include all pursuit-related deaths
+##  but we exclude persons killed by a suspect during a police encounter -- coded by not.kbp in fe_clean
 
-## This is the cleaned/harmonized FE dataset from the previous fewapo repo, 
-### Remove all records for people not killed by police (does not include pursuits)
+## Below we recover the excluded FE cases for 2000-2021, to obtain a consistent WA series 2000-.
 
-## Join on the inIDs for 2021 cases, since these cases are not in wa local
-## By inspection 10/24/2025, all of the 2021 cases in IN are also in FE, 
-## so inSource tag not needed
-## *That may change if they continue to backfill*
+## Start with the cleaned/harmonized FE dataset from the previous fewapo repo,
 
-fe_clean_xtra <- anti_join(fe_clean %>% filter(not.kbp == 0), 
-                           mpv_clean,
-                           by = "feID") %>%
-  left_join(inIDs2021)
+### Remove all records for people not killed by police (except for pursuits)
 
+## Join on the inIDs for 2021 cases, since these cases are not in wa local (which starts in 2022)
+### By inspection 10/24/2025, all of the 2021 cases in IN are also in FE, 
+### so inSource tag not needed
+### *That may change if they continue to backfill*
 
+## Harmonize to new names as needed
+### foreknowledge -> symptoms -- note FE did not code for drug/alcohol use, so not entirely consistent
+### flee -> fleeing
+### race to new census categories, but API can't be split into Asian and NHPI so it is renamed ANHPI
+###  one case fixed: https://komonews.com/news/local/she-touched-many-lives-community-grieves-loss-of-lawyer-killed-in-crash-with-deputy-08-31-2020
+
+fe_clean_xtra <- anti_join(
+  fe_clean %>% filter(not.kbp == 0), 
+  mpv_clean,
+  by = "feID") %>%
+  left_join(inIDs2021) %>%
+ 
+  mutate(
+    symptoms = case_when(
+      grepl("Drug", foreknowledge) ~ "Drug or alchohol",
+      grepl("Ill", foreknowledge) ~ "Mental illness",
+      TRUE ~ foreknowledge),
+    race = case_when(
+      lname == "Leyrer" ~ "WEA", # fix
+      race == "API" ~ "ANHPI", # Asian, Hawaiian, Pacific Islander
+      race == "NAA" ~ "AIAN", # American Indian, Alaska Native
+      raceOrig == "ME" ~ "MENA",
+      TRUE ~ race),
+    race = fct_relevel(race, "Unknown", after = Inf)
+    ) %>%
+  rename(fleeing = flee)    
+  
+  
 
 # WaPo extra cases ----
 ## It's not clear why these are not in MPV.  Need to dx and track down later
@@ -198,14 +229,19 @@ update.message.in <- paste("\n *** Last IN incident: ", last_date_in, "\n\n")
 
 source(here("Construction", "merge_mpv_wa.R"))
 
+## Shared variables for MPV and WA
+
 ## Set consensus variables to WA values for now
-## It's possible that MPV has different values for shared vars, can dx later
+## Note that name, date, city, age, race, gender, county are already cross checked for consistency
+## It's possible that MPV has different values for other shared vars, can dx later
 
 #orig.names = gsub(".wa", "", names(merge_walocal_mpv)[grep(".wa", names(merge_walocal_mpv))])
 mpv.names = names(merge_walocal_mpv)[grep(".mpv", names(merge_walocal_mpv))]
 wa.names = names(merge_walocal_mpv)[grep(".wa", names(merge_walocal_mpv))]
 
-# Rename .wa vars to orig names, drop .mpv vars
+# Rename .wa vars to orig names, drop shared .mpv vars
+# MPV only vars are retained
+
 wa_mpv <- merge_walocal_mpv %>%
   rename_with(~gsub(".wa", "", .), all_of(wa.names)) %>%
   select(-all_of(mpv.names))
@@ -220,17 +256,16 @@ save(id_xwalk_from_2022,
 # Add cases before 2022 ----
 
 ## Resulting file:
-##  2000-2012 all from FE clean, non-MPV years (added)
+##  2000-2012 all WA from FE clean, non-MPV years (added)
 ##  2013-2021 MPV + FE extra (added)
 ##  2022+     MPV + walocal (merged)
 
-## FE WA cases 2000-2021 ---- 
+## FE WA cases 2000-2021 n=409  ---- 
 ## fe_clean_xtra = the final clean FE data from the previous repo (fewa), 
 ## antijoined to MPV so = non-MPV years (2000-2013) + excluded by MPV 2013-2021
 
 fe_clean_xtra_wa <- fe_clean_xtra %>%
-  filter(st == "WA") %>%
-  rename(fleeing = flee)
+  filter(st == "WA") 
 
 # MPV cases 2013-2021 ----
 ## Note: MPV has some cases not included in FE during this period, but none in WA
@@ -240,14 +275,16 @@ mpv_pre2022_wa <- mpv_clean_wa %>%
   filter(year < 2022) %>%
   left_join(inIDs2021)
  
-## Add to existing merged walocal.mpv file and tag source
+## Add to existing merged walocal.mpv file and 
+## tag source ----
+
 wa_mpv_fextra_all <- wa_mpv %>%
-  bind_rows(fe_clean_xtra_wa, .id = "source1") %>% # 1=WA, 2=FE
-  bind_rows(mpv_pre2022_wa, .id = "source2") %>%   # 1=MPV, 2=(WA+FE)
+  bind_rows(fe_clean_xtra_wa, .id = "source1") %>% # 1=(WA+IN), 2=FE
+  bind_rows(mpv_pre2022_wa, .id = "source2") %>%   # 1=(WA+IN+FE), 2=MPV
   mutate(source = case_when(
-    (source1 ==1 & inSource==1) ~ "IN",
-    source1 ==1 ~ "WA",
-    source1 ==2 ~ "FE",
+    inSource==1 ~ "IN",
+    source1==1 ~ "WA", #
+    source1==2 ~ "FE",
     TRUE ~ "MPV")
   ) %>%
   arrange(date) %>%
@@ -331,12 +368,15 @@ cut.yr <- ifelse(curr.mo > 7, curr.yr+1, curr.yr)
 wa_all_draft <- wa_mpv_fextra_all %>% 
   
   ## Count the number of source IDs
+  # MPV recordID should be excluded, all cases with recID also have mpvID
   # When inSource=1 Incarceration is the only source.  These cases are incorporated into 
   # the WA local dataset, so have a WA local ID, but this is not an overlap.
   rowwise() %>%
-  mutate(source.overlap = if_else(is.na(inSource), 
-                                  sum(across(contains("ID"), ~!is.na(.))),
-                                  1)) %>%
+  mutate(source.overlap = if_else(!is.na(inSource), 
+                                  1,
+                                  sum(across(contains("ID"), ~!is.na(.))) - !is.na(recordID)
+                                  )
+         ) %>%
   ungroup() %>%
 
   ## Create unique record locator using source, yr and seqnum
@@ -391,6 +431,9 @@ wa_all_draft <- wa_mpv_fextra_all %>%
   # Any other tweaks
   
   mutate(
+    # race gets unleveled by ANHPI in FE
+    race = fct_relevel(race, "Unknown", after = Inf),
+    
     # crisis vars not consistent, MPV foreknowledge has fewer NA and is likely updating:
     mh_crisis = if_else(is.na(foreknowledge), symptoms, foreknowledge),
     
@@ -427,23 +470,33 @@ wa_all_draft <- wa_mpv_fextra_all %>%
          name:year, cod, mod, not.kbp, race:age,
          city, county, zip, latitude, longitude,
          agency, agency.type, agency.ori, leg.year,
-         armed, weapon, fleeing,
+         armed, weapon, fleeing, symptoms,
          pursuit.type, pursuit.victim, pursuit.injury, pursuit.incinum,
          description, contains("notes"),
          url_info, url_click, url_addl,
+         
          # Officer variables
          officer_names_wa = officer_names,
          officer_names_mpv = officer.names,
          officer.previous,
+         
          # MPV only variables
-         context:context.detail, call4svc, bodycam, 
-         mh_crisis, threat.level, threat.description,
-         officer.names:officer.previous,
+         encounter.type, initial.reason, call4svc, footage, 
+         threat.description,
+         officer.names, officer.races, officer.previous,
+         
          # Links (most from WA)
          officer_url:ME_url, url_pic, url_prosecutor = url.prosecutor,
+         
          # Accountability info (MPV)
-         case.disposition, criminal.charges, charge.outcome, 
+         case.disposition, 
+         admin.rev, admin.outcome,
+         civil.case, civil.outcome,
+         criminal.charge, officer.charges, criminal.outcome, 
+         federal.charge, federal.outcome,
+         
          prosecutor.special, independent.investigation,
+         
          # MPV geographic variables
          census.tract:congress.dist 
          # EOs and parties taken from WA below
@@ -460,22 +513,36 @@ wa_all_draft <- wa_mpv_fextra_all %>%
 # be added to the geocodio csv file manually, and the make_leg_info
 # file rerun to rebuild the leg info file.
 
+## Save out info needed for geocodio
+# wa_all_draft %>%
+#   select(waID, mpvID, feID, city, latitude, longitude) %>%
+#   write.csv(here::here("Data", "Raw", "LegDistUpdate", paste0("allWA", Sys.Date(), ".csv")))
+
 ## Add to all years dataset
 wa_all <- left_join(wa_all_draft, wa_leg_info_city)
 
 ## check for missing cases, if so stop and fix
 
-if(any(is.na(wa_all$WA_District))) {
-  mld <- wa_all[is.na(wa_all$WA_District), 
-                          c("waID", "mpvID", "feID", "city")]
+if(any(is.na(wa_all$St_District))) {
+  mld <- wa_all[is.na(wa_all$St_District), 
+                          c("waID", "mpvID", "feID", "city", "latitude", "longitude")]
   message("Missing LegDists for: \n\n")
-  print(mld)
+  print(mld, digits=9)
+  write.csv(mld, here::here("Data", "Raw", "LegDistUpdate", paste0("new", Sys.Date(), ".csv")))
   message("Need to fix missing LDs")
 }
 
-## Create 2015 dataset
+## Create 2015 WA dataset
 
-wa_2015 <- wa_all %>% filter(year > 2014)
+# for this df only, recode the FE ANHPI by lname, since there are only 5.
+wa_2015 <- wa_all %>% filter(year > 2014) %>%
+  mutate(race = case_when(
+    race=="ANHPI" & lname=="Taitano" ~ "NHPI",
+    race=="ANHPI" & lname=="Leyrer" ~ "NHPI",
+    race=="ANHPI" ~ "ASIA",
+    TRUE ~ race),
+    race = fct_relevel(race, "Unknown", after = Inf)
+  )
   
 # Save WA clean and merged datasets as Rdata files ----
 ## Note that the fe and mpv data include all cases, not just WA.
@@ -491,9 +558,10 @@ save(list = c("wa_clean", "fe_clean", "mpv_clean", "walocal_clean",
 
 ##  2015 and later ----
 selection <- "2015+"
-wa_clean_2015 <- wa_2015
-fe_clean_2015 <- fe_clean %>% filter(date > "2014-12-31")
-mpv_clean_2015 <- mpv_clean %>% filter(date > "2014-12-31")
+
+wa_clean_2015 <- wa_2015 
+fe_clean_2015 <- fe_clean %>% filter(year > 2014)
+mpv_clean_2015 <- mpv_clean %>% filter(year > 2014)
 walocal_clean_2015 <- walocal_clean %>% filter(year > 2014)
  
 
