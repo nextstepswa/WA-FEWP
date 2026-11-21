@@ -113,7 +113,7 @@ mutate(agency = agency_responsible,
 
 mutate(cod = use_of_force,
        cod = case_when(
-         grepl(";", cod) ~ "Multiple types of force",
+         grepl(",", cod) ~ "Multiple types of force",
          grepl("Gunshot", cod) ~ "Gunshot",
          grepl("asph|restraint", cod) ~ "Asphyxiated/Restrained",
          grepl("Physical", cod) ~ "Physical force",
@@ -285,7 +285,7 @@ mutate(armed = allegedly_armed_with,
   mutate(weapon = allegedly_armed_with,
          
          weapon =case_when(
-           grepl(";", weapon) ~ "Multiple weapons",
+           grepl(",", weapon) ~ "Multiple weapons",
            grepl("Gun", weapon)  ~ "Firearm",
            grepl("Edged", weapon)  ~ "Edged weapon",
            grepl("Replica", weapon)  ~ "Replica weapon",
@@ -318,7 +318,7 @@ mutate(armed = allegedly_armed_with,
   
   mutate(footage = incident_footage,
          footage = case_when(
-           grepl(";", footage) ~ "Multiple footage types",
+           grepl(",", footage) ~ "Multiple footage types",
            grepl("Body", footage) ~ "Bodycam",
            grepl("Bystand", footage) ~ "Bystander",
            grepl("Dash", footage) ~ "Dashcam",
@@ -446,7 +446,7 @@ arrange(date, st, city) %>%
   mutate(rowID = row_number()) %>%
   
   ## Select a subset of the cleaned variables into the new df ----
-select(mpvID, feID, wapoID, recordID=record_id, name, date, age, gender,race,
+select(mpvID, feID, wapoID, name, date, age, gender,race, #recordID=record_id, 
        street_address, city, county, state, st, zip, latitude, longitude,
        name2:call4svc, fleeing, pursuit.type:url_info_all, description) 
 

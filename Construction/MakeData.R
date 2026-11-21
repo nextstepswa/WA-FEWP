@@ -368,13 +368,13 @@ cut.yr <- ifelse(curr.mo > 7, curr.yr+1, curr.yr)
 wa_all_draft <- wa_mpv_fextra_all %>% 
   
   ## Count the number of source IDs
-  # MPV recordID should be excluded, all cases with recID also have mpvID
+  # if MPV recordID is in the df it should be excluded, all cases with recID also have mpvID
   # When inSource=1 Incarceration is the only source.  These cases are incorporated into 
   # the WA local dataset, so have a WA local ID, but this is not an overlap.
   rowwise() %>%
   mutate(source.overlap = if_else(!is.na(inSource), 
                                   1,
-                                  sum(across(contains("ID"), ~!is.na(.))) - !is.na(recordID)
+                                  sum(across(contains("ID"), ~!is.na(.))) #- !is.na(recordID)
                                   )
          ) %>%
   ungroup() %>%
@@ -523,8 +523,8 @@ wa_all <- left_join(wa_all_draft, wa_leg_info_city)
 
 ## check for missing cases, if so stop and fix
 
-if(any(is.na(wa_all$St_District))) {
-  mld <- wa_all[is.na(wa_all$St_District), 
+if(any(is.na(wa_all$st_district))) {
+  mld <- wa_all[is.na(wa_all$st_district), 
                           c("waID", "mpvID", "feID", "city", "latitude", "longitude")]
   message("Missing LegDists for: \n\n")
   print(mld, digits=9)
