@@ -596,7 +596,7 @@ homicides %>%
 This information is obtained by geocoding the latitude and longitude data on the
 [geocodio](https://www.geocod.io/) platform.  
 
-Washington State has 49 legislative districts.  Since 2015 there have been people killed by police in `r length(unique(homicides$St_District))` of them.
+Washington State has 49 legislative districts.  Since 2015 there have been people killed by police in `r length(unique(homicides$st_district))` of them.
 
 Given the number of districts involved, we plot the top 10 for legibility .
 
@@ -607,14 +607,14 @@ The table includes all districts and all incidents.
 ```{r ldplot10}
 
 tab <- homicides %>%
-  group_by(St_District) %>%
+  group_by(st_district) %>%
   summarize(n = n(),
             perc = n / nrow(homicides)) %>%
   arrange(desc(n))
 
 tab[1:10,] %>%
   
-  ggplot(aes(reorder(St_District, perc),
+  ggplot(aes(reorder(st_district, perc),
              y = perc, 
              label = n)) +
   geom_text(aes(y = perc), size = 3, nudge_y = .003) +
@@ -643,7 +643,7 @@ tab[1:10,] %>%
 ```{r ldtab}
 
 homicides %>%
-  group_by(St_District) %>%
+  group_by(st_district) %>%
   summarize(Number = n(),
             Percent = round(100*Number/nrow(homicides), 1)
   ) %>%
@@ -1468,7 +1468,7 @@ homicides %>%
   arrange(desc(date)) %>%
   #mutate(date = format(as.Date(date), format = "%m/%d/%Y")) %>% can't use format, sorting fails
   filter(name != "Unknown") %>%
-  select(name, date, age=age, race, county, `WA-LD`=St_District, 
+  select(name, date, age=age, race, county, `WA-LD`=st_district, 
          agency, link = url_click) %>%
  
   DT::datatable(rownames = F,
@@ -1495,7 +1495,7 @@ homicides %>%
   mutate(date = as.Date(date)) %>%
   arrange(desc(date)) %>%
   filter(name == "Unknown") %>%
-  select(name, date, age=age, race, county, `WA-LD`=St_District, 
+  select(name, date, age=age, race, county, `WA-LD`=st_district, 
          agency, link = url_click) %>%
   arrange(desc(date)) %>%
   DT::datatable(rownames = F,
