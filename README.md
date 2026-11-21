@@ -1,6 +1,6 @@
 # WA-FEWP
 This repository contains data and scripts used to track the people killed during fatal encounters with police in Washington State since 2015.
-These are used to produce an [online report](https://rpubs.com/moxbox/wa_since2015) that is updated weekly.
+These are used to produce an [online report](https://nextstepswa.github.io/WA-FEWP/) that is updated weekly.
 
 The dataset draws from two actively updating sources: 
 
