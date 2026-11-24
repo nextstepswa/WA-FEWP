@@ -4,7 +4,7 @@ These are used to produce an [online report](https://nextstepswa.github.io/WA-FE
 
 The dataset draws from two actively updating sources: 
 
-* [Mapping Police Violence](https://mappingpoliceviolence.us/) -- 2013+ 
+* [Mapping Police Violence](https://mappingpoliceviolence.org/) -- 2013+ 
 
 * [Incarcernation](https://incarcernation.com/) -- 2021+
 
